@@ -11,7 +11,7 @@ add_installed_software() {
         local LOG_ENTRY="${SW_NAME}|system|||${SW_META}"
 
         if grep -Fxq "$LOG_ENTRY" "$LOG_FILE"; then
-            echo "[INFO] ${SW_NAME}은 이미 설치 목록에 등록되어 있습니다."
+            echo "[INFO] ${SW_NAME}은 설치 목록에 등록되어 있습니다."
             return 0
         fi
 

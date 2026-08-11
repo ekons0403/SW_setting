@@ -1,32 +1,20 @@
 #!/bin/bash
-# ========================================
-# Docker 설정
-# ========================================
 REQUIRE_VENV=false
-
-# ========================================
 # Docker 설치
-# ========================================
 install_software() {
     echo ""
     echo "========================================"
     echo "        Docker Installation"
     echo "========================================"
     echo ""
-    # ========================================
     # Docker 설치 여부 확인
-    # ========================================
     if command -v docker > /dev/null 2>&1; then
-        echo "[INFO] Docker가 이미 설치되어 있습니다."
-        echo "[INFO] 설치를 건너뜁니다."
+        echo "[INFO] docker가 설치되어 있습니다."
         # 이미 설치된 SW도 목록에 등록
         add_installed_software "docker" "system"
         return 0
     fi
-
-    # ========================================
     # Docker 설치
-    # ========================================
     echo "[INFO] Docker를 설치합니다."
     echo ""
     curl -fsSL https://get.docker.com/ | sudo sh
@@ -49,10 +37,7 @@ install_software() {
         return 1
     fi
     echo "[SUCCESS] Docker 그룹 추가가 완료되었습니다."
-
-    # ========================================
     # Docker 서비스 확인
-    # ========================================
     echo ""
     echo "[INFO] Docker 서비스 상태를 확인합니다."
     if systemctl is-active --quiet docker; then
@@ -62,10 +47,7 @@ install_software() {
         echo "[INFO] Docker 서비스를 시작합니다."
         sudo systemctl start docker
     fi
-
-    # ========================================
     # 설치 완료
-    # ========================================
     echo ""
     echo "========================================"
     echo "     Docker 설치 완료"
@@ -76,17 +58,11 @@ install_software() {
     echo ""
     echo "[INFO] Docker를 현재 사용자 권한으로 사용하려면"
     echo "[INFO] 로그아웃 후 다시 로그인하거나 재부팅해야 합니다."
-
-    # ========================================
     # 설치 목록 등록
-    # ========================================
     add_installed_software "docker" "system"
     return 0
 }
-
-# ========================================
 # Docker 삭제
-# ========================================
 uninstall_software() {
 
     echo ""

@@ -31,6 +31,23 @@
 
 # SW Library 설치
 install_library() {
+    local libraries=()
+    for file in "$LIB_DIR"/*.sh; do
+        [ -f "$file" ] || continue
+        local library
+        library=$(basename "$file" .sh)
+        libraries+=("$library")
+    done
+    echo ""
+    echo "========================================"
+    echo "          Installable Libraries"
+    echo "========================================"
+    local i=1
+    for library in "${libraries[@]}"; do
+        echo "  ${i}. ${library}"
+        ((i++))
+    done
+    echo "========================================"
     echo ""
     read -p "Install Library : " LIBRARY
     if [ -z "$LIBRARY" ]; then
@@ -46,10 +63,7 @@ install_library() {
         return 1
     fi
     echo "[INFO] 설치 모듈 확인: ${MODULE}"
-    echo "[INFO] 설치 모듈을 찾았습니다."
     # 인터넷 연결 확인
-    echo ""
-    echo "[INFO] 인터넷 연결을 확인합니다."
     if check_internet; then
         echo "[SUCCESS] 인터넷 연결이 확인되었습니다."
     else
@@ -62,27 +76,24 @@ install_library() {
     echo "[ERROR] 모듈: ${MODULE}"
     return 1
     fi
-    echo "[INFO] install_software 함수가 정상적으로 로드되었습니다."
     # 가상환경 필요 여부 확인
     if ! select_required_venv;then
         return 1
     fi
     # SW 설치 모듈 실행
-    echo ""
     echo "[INFO] ${LIBRARY} 설치를 시작합니다."
     install_software
     if [ $? -ne 0 ]; then
-        echo ""
         echo "[ERROR] ${LIBRARY} 설치에 실패했습니다."
         return 1
     fi
-    echo ""
     echo "[SUCCESS] ${LIBRARY} 설치가 완료되었습니다."
     return 0
 }
 
 # SW Library 삭제
 uninstall_library() {
+    show_installed_software
     echo ""
     read -p "Uninstall Library : " LIBRARY
     if [ -z "$LIBRARY" ]; then
