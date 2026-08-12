@@ -54,7 +54,6 @@ install_software() {
         echo ""
         echo "PyTorch Version     : ${PYTORCH_VERSION}"
         echo "torchvision Version : ${TORCHVISION_VERSION}"
-        echo "torchaudio Version  : ${PYTORCH_VERSION}"
         echo "CUDA Wheel          : ${CUDA_WHEEL}"
         echo ""
         echo "1. 추천 버전으로 설치"
@@ -102,7 +101,6 @@ install_software() {
     echo ""
     echo "PyTorch Version     : ${PYTORCH_VERSION}"
     echo "torchvision Version : ${TORCHVISION_VERSION}"
-    echo "torchaudio Version  : ${PYTORCH_VERSION}"
     echo "CUDA Wheel          : ${CUDA_WHEEL}"
     echo "Conda Environment   : ${SELECTED_VE}"
     echo "Python Version      : ${SELECTED_PYTHON_VERSION}"
@@ -116,7 +114,7 @@ install_software() {
     echo "[INFO] PyTorch 설치를 시작합니다."
     echo "[INFO] 설치 URL: ${TORCH_INDEX}"
     echo ""
-    "${SELECTED_VE_PATH}/bin/python" -m pip install "torch==${PYTORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" "torchaudio==${PYTORCH_VERSION}" --index-url "${TORCH_INDEX}"
+    "${SELECTED_VE_PATH}/bin/python" -m pip install "torch==${PYTORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" --index-url "${TORCH_INDEX}"
     if [ $? -ne 0 ]; then
         echo ""
         echo "[ERROR] PyTorch 설치에 실패했습니다."
@@ -184,7 +182,7 @@ uninstall_software() {
     fi
     echo ""
     echo "[INFO] PyTorch를 삭제합니다."
-    "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y torch torchvision torchaudio
+    "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y torch torchvision
     if [ $? -ne 0 ]; then
         echo "[ERROR] PyTorch 삭제에 실패했습니다."
         return 1
