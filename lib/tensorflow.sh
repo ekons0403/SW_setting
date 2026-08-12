@@ -1,69 +1,61 @@
 #!/bin/bash
 REQUIRE_VENV=true
 get_system_info() {
-    NVIDIA_DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null|head -n1)
-    CUDA_VERSION=$(nvcc --version 2>/dev/null|grep -oP 'release \K[0-9]+.[0-9]+'|head -n1)
-    [ -z "$NVIDIA_DRIVER" ]&&NVIDIA_DRIVER="확인 불가"
-    [ -z "$CUDA_VERSION" ]&&CUDA_VERSION="확인 불가"
+    NVIDIA_DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1)
+    CUDA_VERSION=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+\.[0-9]+' | head -n1)
+    [ -z "$NVIDIA_DRIVER" ] && NVIDIA_DRIVER="확인 불가"
+    [ -z "$CUDA_VERSION" ] && CUDA_VERSION="확인 불가"
 }
+SW_NAME="tensorflow"
+SW_DESCRIPTION="TensorFlow"
+SW_CATEGORY="Machine Learning"
+SW_INSTALL_TYPE="pip"
 install_software() {
-    get_system_info
-    echo ""
-    echo "========================================"
-    echo "        TensorFlow Installation Info"
-    echo "========================================"
-    echo ""
-    echo "TensorFlow Version : 최신 버전"
-    echo "Package            : tensorflow[and-cuda]"
-    echo "Conda Environment  : ${SELECTED_VE}"
-    echo "Python Version     : ${SELECTED_PYTHON_VERSION}"
-    echo ""
-    read -p "위 설정으로 설치하시겠습니까? (y/n) : " INSTALL_CONFIRM
-    if [[ ! "$INSTALL_CONFIRM" =~ ^[Yy]$ ]]; then
-    echo "[INFO] 설치를 취소했습니다."
-    return 0
-    fi
-    echo ""
-    echo "[INFO] TensorFlow 설치를 시작합니다."
-    echo "[INFO] 설치 패키지: tensorflow[and-cuda]"
-    echo ""
-    "${SELECTED_VE_PATH}/bin/python" -m pip install "tensorflow[and-cuda]"
+    read -p "계속하시겠습니까? [y/n]: " answer
+    case "$answer" in
+        y|Y)
+            ;;
+        *)
+            echo "설치를 취소했습니다."
+            return 0
+            ;;
+    esac
+    echo "TensorFlow 설치 중..."
+    "${SELECTED_VE_PATH}/bin/python" -m pip install --upgrade tensorflow
     if [ $? -ne 0 ]; then
-    echo ""
-    return 1
+        echo "TensorFlow 설치 실패"
+        return 1
     fi
-    echo ""
-    echo "[SUCCESS] TensorFlow 설치가 완료되었습니다."
-    TENSORFLOW_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import tensorflow as tf; print(tf.__version__)" 2>/dev/null)
+    TENSORFLOW_VERSION=$("${SELECTED_VE_PATH}/bin/python" -m pip show tensorflow | awk '/^Version:/{print $2}')
     if [ -z "$TENSORFLOW_VERSION" ]; then
-    echo "[ERROR] TensorFlow 설치 확인에 실패했습니다."
-    return 1
+        echo "TensorFlow 버전을 확인할 수 없습니다."
+        return 1
     fi
-    echo ""
-    echo "[INFO] 설치된 TensorFlow 버전: ${TENSORFLOW_VERSION}"
-TF_INFO=$("${SELECTED_VE_PATH}/bin/python" - <<'PY'
-import tensorflow as tf
-print(f"TensorFlow: {tf.__version__}")
-print(f"GPU Available: {len(tf.config.list_physical_devices('GPU')) > 0}")
-print(f"GPU Count: {len(tf.config.list_physical_devices('GPU'))}")
-for i, gpu in enumerate(tf.config.list_physical_devices('GPU')): print(f"GPU {i}: {gpu.name}")
-PY
-)
-    echo "$TF_INFO"
-    if echo "$TF_INFO" | grep -q "GPU Available: True"; then
-    echo "[SUCCESS] TensorFlow에서 GPU 인식이 확인되었습니다."
-    else
-    echo "[WARNING] TensorFlow는 설치되었지만 GPU를 인식하지 못했습니다."
-    fi
-    SW_META="tensorflow=${TENSORFLOW_VERSION}"
-    add_installed_software "tensorflow" "conda" "${SELECTED_VE}" "${SELECTED_PYTHON_VERSION}" "${SW_META}"
+    echo "TensorFlow 설치 완료: ${TENSORFLOW_VERSION}"
+    verify_installation
     if [ $? -ne 0 ]; then
-    echo "[ERROR] 설치 목록 등록에 실패했습니다."
-    return 1
+        return 1
     fi
-    echo ""
-    echo "[SUCCESS] TensorFlow 설치 및 등록이 완료되었습니다."
-    return 0
+    add_installed_software "tensorflow" "conda" "${SELECTED_VE}" "${SELECTED_PYTHON_VERSION}" "tensorflow=${TENSORFLOW_VERSION}"
+}
+verify_installation() {
+    echo "TensorFlow 작동 여부를 확인합니다."
+    PYTHON="${SELECTED_VE_PATH}/bin/python"
+    NVIDIA_LIB_DIR=$("$PYTHON" -c "import site, os, glob; base=site.getsitepackages()[0]; print(':'.join(glob.glob(os.path.join(base, 'nvidia', '*', 'lib'))))" 2>/dev/null)
+    if [ -n "$NVIDIA_LIB_DIR" ]; then
+        export LD_LIBRARY_PATH="$NVIDIA_LIB_DIR:$LD_LIBRARY_PATH"
+        echo "[INFO] NVIDIA CUDA Libraries:"
+        echo "$NVIDIA_LIB_DIR" | tr ':' '\n'
+    else
+        echo "[WARNING] NVIDIA CUDA library를 찾을 수 없습니다."
+    fi
+    "$PYTHON" -c "import sys; import tensorflow as tf; print('Python:', sys.executable); print('TensorFlow:', tf.__version__); gpus=tf.config.list_physical_devices('GPU'); print('GPU:', len(gpus)); exit(0 if gpus else 1)"
+    if [ $? -eq 0 ]; then
+        echo "TensorFlow GPU 작동 확인 완료"
+    else
+        echo "TensorFlow GPU 작동 확인 실패"
+        return 1
+    fi
 }
 uninstall_software() {
     echo ""
@@ -75,25 +67,27 @@ uninstall_software() {
     echo "[INFO] Python 버전: ${SELECTED_PYTHON_VERSION}"
     echo "[INFO] 경로: ${SELECTED_VE_PATH}"
     echo ""
-    if ! "${SELECTED_VE_PATH}/bin/python" -c "import tensorflow" 2>/dev/null; then
-    echo "[INFO] 해당 가상환경에 TensorFlow가 설치되어 있지 않습니다."
-    return 0
+    if ! "${SELECTED_VE_PATH}/bin/python" -m pip show tensorflow >/dev/null 2>&1; then
+        echo "[INFO] 해당 가상환경에 TensorFlow가 설치되어 있지 않습니다."
+        remove_installed_software "tensorflow" "${SELECTED_VE}"
+        return 0
     fi
-    TENSORFLOW_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import tensorflow as tf; print(tf.__version__)" 2>/dev/null)
+    TENSORFLOW_VERSION=$("${SELECTED_VE_PATH}/bin/python" -m pip show tensorflow | awk '/^Version:/{print $2}')
     echo "[INFO] 설치된 TensorFlow: ${TENSORFLOW_VERSION}"
     echo ""
     read -p "TensorFlow를 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM
     if [[ ! "$UNINSTALL_CONFIRM" =~ ^[Yy]$ ]]; then
-    echo "[INFO] 삭제를 취소했습니다."
-    return 0
+        echo "[INFO] 삭제를 취소했습니다."
+        return 0
     fi
     echo ""
     echo "[INFO] TensorFlow를 삭제합니다."
     "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y tensorflow
     if [ $? -ne 0 ]; then
-    echo "[ERROR] TensorFlow 삭제에 실패했습니다."
-    return 1
+        echo "[ERROR] TensorFlow 삭제에 실패했습니다."
+        return 1
     fi
+    remove_installed_software "tensorflow" "${SELECTED_VE}"
     echo ""
     echo "[SUCCESS] TensorFlow 삭제가 완료되었습니다."
     return 0
