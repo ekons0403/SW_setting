@@ -1,7 +1,7 @@
 #!/bin/bash
-# 가상환경 여부
+#가상환경 여부
 REQUIRE_VENV=true
-# 서버 정보
+#서버 정보
 get_system_info() {
     NVIDIA_DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null|head -n1)
     CUDA_VERSION=$(nvcc --version 2>/dev/null|grep -oP 'release \K[0-9]+\.[0-9]+'|head -n1)
