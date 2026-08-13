@@ -1,8 +1,6 @@
 #!/bin/bash
-
 # 가상환경 여부
 REQUIRE_VENV=true
-
 install_software() {
     echo ""
     echo "========================================"
