@@ -48,7 +48,38 @@ install_software() {
         return 1
     fi
     echo "JupyterLab: ${JUPYTERLAB_VERSION}"
-    echo "[SUCCESS] JupyterLab 설치 및 동작이 확인되었습니다."
+    echo "[SUCCESS] JupyterLab 설치 확인이 완료되었습니다."
+    echo ""
+    echo "[INFO] JupyterLab 실행 테스트를 시작합니다."
+    JUPYTER_LOG="/tmp/jupyter_lab_test.log"
+    "${SELECTED_VE_PATH}/bin/jupyter" lab --no-browser --ip=127.0.0.1 --port=8888 --ServerApp.token="" --ServerApp.password="" >"${JUPYTER_LOG}" 2>&1 &
+    JUPYTER_PID=$!
+    JUPYTER_READY=false
+    for i in {1..10};do
+        sleep 1
+        if curl -s --max-time 2 http://127.0.0.1:8888/lab >/dev/null 2>&1;then
+            JUPYTER_READY=true
+            break
+        fi
+        if ! kill -0 "$JUPYTER_PID" 2>/dev/null;then
+            break
+        fi
+    done
+    if [[ "$JUPYTER_READY" == "true" ]];then
+        echo "[SUCCESS] JupyterLab 실행 및 접속 테스트가 완료되었습니다."
+    else
+        echo "[WARNING] JupyterLab 설치는 완료되었지만 실행 테스트에 실패했습니다."
+        if [ -f "$JUPYTER_LOG" ];then
+            tail -n 10 "$JUPYTER_LOG"
+        fi
+        kill "$JUPYTER_PID" 2>/dev/null
+        wait "$JUPYTER_PID" 2>/dev/null
+        rm -f "$JUPYTER_LOG"
+        return 1
+    fi
+    kill "$JUPYTER_PID" 2>/dev/null
+    wait "$JUPYTER_PID" 2>/dev/null
+    rm -f "$JUPYTER_LOG"
     SW_META="jupyterlab=${JUPYTERLAB_VERSION}"
     add_installed_software "jupyter_lab" "conda" "${SELECTED_VE}" "${PYTHON_VERSION}" "${SW_META}"
     if [ $? -ne 0 ];then
