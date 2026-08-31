@@ -1,12 +1,23 @@
 #!/bin/bash
-#가상환경 여부
+# 가상환경 여부
 REQUIRE_VENV=true
-#서버 정보
+# 서버 정보
 get_system_info() {
     NVIDIA_DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null|head -n1)
     CUDA_VERSION=$(nvcc --version 2>/dev/null|grep -oP 'release \K[0-9]+\.[0-9]+'|head -n1)
     [ -z "$NVIDIA_DRIVER" ]&&NVIDIA_DRIVER="확인 불가"
     [ -z "$CUDA_VERSION" ]&&CUDA_VERSION="확인 불가"
+}
+# TensorRT 설치 여부
+get_installed_tensorrt() {
+    INSTALLED_TENSORRT_VERSION=""
+    if [ -n "$SELECTED_VE_PATH" ]&&[ -x "${SELECTED_VE_PATH}/bin/python" ];then
+        INSTALLED_TENSORRT_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import tensorrt as trt; print(trt.__version__)" 2>/dev/null)
+    fi
+    if [ -n "$INSTALLED_TENSORRT_VERSION" ];then
+        return 0
+    fi
+    return 1
 }
 # 추천 버전
 recommend_tensorrt() {
@@ -37,18 +48,30 @@ recommend_tensorrt() {
             return 1
             ;;
     esac
+    return 0
 }
-# tensorrt 설치
+# TensorRT 설치
 install_software() {
+    get_installed_tensorrt
+    if [ $? -eq 0 ];then
+        echo ""
+        print_message INFO "TensorRT가 이미 설치되어 있습니다."
+        echo ""
+        echo "Installed : TensorRT"
+        echo "Version   : ${INSTALLED_TENSORRT_VERSION}"
+        echo "Environment : ${SELECTED_VE}"
+        return 2
+    fi
     get_system_info
     echo ""
     echo "========================================"
-    echo "        System Information"
+    echo "        TensorRT Installation"
     echo "========================================"
     echo ""
     echo "NVIDIA Driver : ${NVIDIA_DRIVER}"
     echo "CUDA          : ${CUDA_VERSION}"
     echo "Python        : ${SELECTED_PYTHON_VERSION}"
+    echo "Environment   : ${SELECTED_VE}"
     echo ""
     if recommend_tensorrt;then
         RECOMMEND_AVAILABLE=true
@@ -63,7 +86,7 @@ install_software() {
         echo "2. 직접 입력"
     else
         RECOMMEND_AVAILABLE=false
-        echo "[WARNING] 현재 CUDA 버전에 맞는 추천 TensorRT 버전을 찾을 수 없습니다."
+        print_message WARNING "현재 CUDA 버전에 맞는 추천 TensorRT 버전을 찾을 수 없습니다."
         echo ""
         echo "1. 직접 입력"
     fi
@@ -78,7 +101,7 @@ install_software() {
                 read -p "TensorRT Package : " TENSORRT_PACKAGE
                 ;;
             *)
-                echo "[ERROR] 올바른 번호를 선택해주세요."
+                print_message ERROR "올바른 번호를 선택해주세요."
                 return 1
                 ;;
         esac
@@ -89,10 +112,14 @@ install_software() {
                 read -p "TensorRT Package : " TENSORRT_PACKAGE
                 ;;
             *)
-                echo "[ERROR] 올바른 번호를 선택해주세요."
+                print_message ERROR "올바른 번호를 선택해주세요."
                 return 1
                 ;;
         esac
+    fi
+    if [ -z "$TENSORRT_VERSION" ]||[ -z "$TENSORRT_PACKAGE" ];then
+        print_message ERROR "TensorRT 버전과 Package를 입력해주세요."
+        return 1
     fi
     echo ""
     echo "========================================"
@@ -106,22 +133,19 @@ install_software() {
     echo ""
     read -p "위 설정으로 설치하시겠습니까? (y/n) : " INSTALL_CONFIRM
     if [[ ! "$INSTALL_CONFIRM" =~ ^[Yy]$ ]];then
-        echo "[INFO] 설치를 취소했습니다."
-        return 0
+        print_message INFO "설치를 취소했습니다."
+        return 3
     fi
     echo ""
-    echo "[INFO] TensorRT 설치를 시작합니다."
+    print_message INFO "TensorRT 설치를 시작합니다."
     echo ""
     "${SELECTED_VE_PATH}/bin/python" -m pip install "${TENSORRT_PACKAGE}==${TENSORRT_VERSION}"
     if [ $? -ne 0 ];then
-        echo ""
-        echo "[ERROR] TensorRT 설치에 실패했습니다."
+        print_message ERROR "TensorRT 설치에 실패했습니다."
         return 1
     fi
     echo ""
-    echo "[SUCCESS] TensorRT 설치가 완료되었습니다."
-    echo ""
-    echo "[INFO] 설치 버전을 확인합니다."
+    print_message INFO "TensorRT 설치를 확인합니다."
     TENSORRT_INFO=$("${SELECTED_VE_PATH}/bin/python" - <<'PY'
 import tensorrt as trt
 print(f"TensorRT: {trt.__version__}")
@@ -133,54 +157,79 @@ except Exception as e:
     print(f"TensorRT Builder: ERROR - {e}")
 PY
 )
+    if [ -z "$TENSORRT_INFO" ];then
+        print_message ERROR "TensorRT 설치 확인에 실패했습니다."
+        return 1
+    fi
     echo "$TENSORRT_INFO"
-    if echo "$TENSORRT_INFO"|grep -q "TensorRT Builder: OK";then
-        echo "[SUCCESS] TensorRT 및 Builder 확인이 완료되었습니다."
-    else
-        echo "[WARNING] TensorRT는 설치되었지만 Builder 확인에 실패했습니다."
+    if ! echo "$TENSORRT_INFO"|grep -q "TensorRT Builder: OK";then
+        print_message ERROR "TensorRT Builder 확인에 실패했습니다."
+        return 1
     fi
     INSTALLED_TENSORRT_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import tensorrt as trt; print(trt.__version__)" 2>/dev/null)
+    if [ -z "$INSTALLED_TENSORRT_VERSION" ];then
+        print_message ERROR "TensorRT 버전을 확인할 수 없습니다."
+        return 1
+    fi
     SW_META="tensorrt=${INSTALLED_TENSORRT_VERSION};cuda=${CUDA_VERSION};package=${TENSORRT_PACKAGE}"
     add_installed_software "tensorrt" "conda" "${SELECTED_VE}" "${SELECTED_PYTHON_VERSION}" "${SW_META}"
     if [ $? -ne 0 ];then
-        echo "[ERROR] 설치 목록 등록에 실패했습니다."
+        print_message ERROR "설치 목록 등록에 실패했습니다."
         return 1
     fi
     echo ""
-    echo "[SUCCESS] TensorRT 설치 및 등록이 완료되었습니다."
     return 0
 }
-# tensorrt 삭제
+# TensorRT 삭제
 uninstall_software() {
     echo ""
     echo "========================================"
     echo "        TensorRT Uninstallation"
     echo "========================================"
     echo ""
-    echo "[INFO] 선택된 가상환경: ${SELECTED_VE}"
-    echo "[INFO] Python 버전: ${SELECTED_PYTHON_VERSION}"
-    echo "[INFO] 경로: ${SELECTED_VE_PATH}"
-    echo ""
-    if ! "${SELECTED_VE_PATH}/bin/python" -c "import tensorrt" 2>/dev/null;then
-        echo "[INFO] 해당 가상환경에 TensorRT가 설치되어 있지 않습니다."
-        return 0
+    if [ -z "$SELECTED_VE_PATH" ]||[ ! -x "${SELECTED_VE_PATH}/bin/python" ];then
+        print_message ERROR "선택된 가상환경을 확인할 수 없습니다."
+        return 1
     fi
-    TENSORRT_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import tensorrt as trt; print(trt.__version__)" 2>/dev/null)
-    echo "[INFO] 설치된 TensorRT: ${TENSORRT_VERSION}"
-    echo ""
-    read -p "TensorRT를 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM
-    if [[ ! "$UNINSTALL_CONFIRM" =~ ^[Yy]$ ]];then
-        echo "[INFO] 삭제를 취소했습니다."
-        return 0
-    fi
-    echo ""
-    echo "[INFO] TensorRT를 삭제합니다."
-    "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y tensorrt tensorrt-cu12 tensorrt-cu13 tensorrt-libs tensorrt-bindings tensorrt_cu12 tensorrt_cu13
+    get_installed_tensorrt
     if [ $? -ne 0 ];then
-        echo "[ERROR] TensorRT 삭제에 실패했습니다."
+        print_message INFO "선택된 가상환경에 TensorRT가 설치되어 있지 않습니다."
+        return 2
+    fi
+    echo "Installed : TensorRT"
+    echo "Version   : ${INSTALLED_TENSORRT_VERSION}"
+    echo "Environment : ${SELECTED_VE}"
+    echo ""
+    read -p "TensorRT를 모두 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM
+    if [[ ! "$UNINSTALL_CONFIRM" =~ ^[Yy]$ ]];then
+        print_message INFO "삭제를 취소했습니다."
+        return 3
+    fi
+    echo ""
+    print_message INFO "TensorRT 관련 패키지를 모두 삭제합니다."
+    "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y \
+        tensorrt \
+        tensorrt-cu12 \
+        tensorrt-cu13 \
+        tensorrt-libs \
+        tensorrt-bindings \
+        tensorrt_cu12 \
+        tensorrt_cu13
+    if [ $? -ne 0 ];then
+        print_message ERROR "TensorRT 삭제에 실패했습니다."
         return 1
     fi
     echo ""
-    echo "[SUCCESS] TensorRT 삭제가 완료되었습니다."
+    print_message INFO "TensorRT 삭제 여부를 확인합니다."
+    if "${SELECTED_VE_PATH}/bin/python" -c "import tensorrt" 2>/dev/null;then
+        print_message ERROR "TensorRT가 아직 설치되어 있습니다."
+        return 1
+    fi
+    remove_installed_software "tensorrt" "${SELECTED_VE}"
+    if [ $? -ne 0 ];then
+        print_message ERROR "설치 목록 삭제에 실패했습니다."
+        return 1
+    fi
+    echo ""
     return 0
 }

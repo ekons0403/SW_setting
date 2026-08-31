@@ -1,4 +1,22 @@
 #!/bin/bash
+# 색상
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[0;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m'
+# 메시지
+print_message() {
+    local TYPE="$1"
+    local MESSAGE="$2"
+    case "$TYPE" in
+        INFO)echo -e "${BLUE}[INFO]${NC} ${MESSAGE}";;
+        SUCCESS)echo -e "${GREEN}[SUCCESS]${NC} ${MESSAGE}";;
+        WARNING)echo -e "${YELLOW}[WARNING]${NC} ${MESSAGE}";;
+        ERROR)echo -e "${RED}[ERROR]${NC} ${MESSAGE}";;
+        *)echo "$MESSAGE";;
+    esac
+}
 # SW 버전 출력
 print_sw_meta() {
     local SW_META="$1"
@@ -27,23 +45,26 @@ get_library_module() {
 # 가상환경
 select_required_venv() {
     [[ "$REQUIRE_VENV" != "true" ]]&&return 0
-    echo ""
-    echo "[INFO] 이 라이브러리는 가상환경이 필요합니다."
     select_virtual_environment
     if [ $? -ne 0 ];then
-        echo ""
-        echo "[ERROR] 가상환경을 선택하지 못했습니다."
+        print_messaage ERROR "가상환경을 선택하지 못했습니다."
         return 1
     fi
-    echo ""
-    echo "[INFO] 선택된 가상환경: ${SELECTED_VE}"
-    echo "[INFO] Python 버전: ${SELECTED_PYTHON_VERSION}"
-    echo "[INFO] 경로: ${SELECTED_VE_PATH}"
 }
 # 모듈
 load_module_function() {
     local MODULE="$1"
     local FUNCTION="$2"
+    if [ ! -f "$MODULE" ];then
+        return 1
+    fi
     source "$MODULE"
-    declare -F "$FUNCTION">/dev/null
+    if ! declare -F "$FUNCTION" >/dev/null 2>&1;then
+        return 1
+    fi
+    return 0
+}
+# 화면 초기화
+clear_screen() {
+    clear
 }
