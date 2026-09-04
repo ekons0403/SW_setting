@@ -1,12 +1,21 @@
 #!/bin/bash
-#가상환경 여부
+# 가상환경 여부
 REQUIRE_VENV=true
-#서버 정보
+# 서버 정보
 get_system_info() {
     NVIDIA_DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null|head -n1)
     CUDA_VERSION=$(nvcc --version 2>/dev/null|grep -oP 'release \K[0-9]+\.[0-9]+'|head -n1)
     [ -z "$NVIDIA_DRIVER" ]&&NVIDIA_DRIVER="확인 불가"
     [ -z "$CUDA_VERSION" ]&&CUDA_VERSION="확인 불가"
+}
+# PyTorch 설치 여부
+get_installed_pytorch() {
+    INSTALLED_PYTORCH_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import torch; print(torch.__version__)" 2>/dev/null)
+    INSTALLED_TORCHVISION_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import torchvision; print(torchvision.__version__)" 2>/dev/null)
+    if [ -n "$INSTALLED_PYTORCH_VERSION" ];then
+        return 0
+    fi
+    return 1
 }
 # 추천 버전
 recommend_pytorch() {
@@ -33,9 +42,20 @@ recommend_pytorch() {
             return 1
             ;;
     esac
+    return 0
 }
-# pytorch 설치
+# PyTorch 설치
 install_software() {
+    get_installed_pytorch
+    if [ $? -eq 0 ];then
+        echo ""
+        echo "Installed : PyTorch"
+        echo "Version   : ${INSTALLED_PYTORCH_VERSION}"
+        echo "torchvision : ${INSTALLED_TORCHVISION_VERSION:-확인 불가}"
+        echo "Environment : ${SELECTED_VE}"
+        print_message INFO "PyTorch가 이미 설치되어 있습니다."
+        return 2
+    fi
     get_system_info
     echo ""
     echo "========================================"
@@ -60,7 +80,7 @@ install_software() {
         echo "2. 직접 입력"
     else
         RECOMMEND_AVAILABLE=false
-        echo "[WARNING] 현재 CUDA 버전에 맞는 추천 조합을 찾을 수 없습니다."
+        print_message WARNING "현재 CUDA 버전에 맞는 추천 조합을 찾을 수 없습니다."
         echo ""
         echo "1. 직접 입력"
     fi
@@ -76,7 +96,7 @@ install_software() {
                 read -p "CUDA Wheel : " CUDA_WHEEL
                 ;;
             *)
-                echo "[ERROR] 올바른 번호를 선택해주세요."
+                print_message ERROR "올바른 번호를 선택해주세요."
                 return 1
                 ;;
         esac
@@ -88,10 +108,14 @@ install_software() {
                 read -p "CUDA Wheel : " CUDA_WHEEL
                 ;;
             *)
-                echo "[ERROR] 올바른 번호를 선택해주세요."
+                print_message ERROR "올바른 번호를 선택해주세요."
                 return 1
                 ;;
         esac
+    fi
+    if [ -z "$PYTORCH_VERSION" ]||[ -z "$TORCHVISION_VERSION" ]||[ -z "$CUDA_WHEEL" ];then
+        print_message ERROR "PyTorch, torchvision, CUDA Wheel 정보를 모두 입력해주세요."
+        return 1
     fi
     TORCH_INDEX="https://download.pytorch.org/whl/${CUDA_WHEEL}"
     echo ""
@@ -106,88 +130,104 @@ install_software() {
     echo "Python Version      : ${SELECTED_PYTHON_VERSION}"
     echo ""
     read -p "위 설정으로 설치하시겠습니까? (y/n) : " INSTALL_CONFIRM
-    if [[ ! "$INSTALL_CONFIRM" =~ ^[Yy]$ ]]; then
-        echo "[INFO] 설치를 취소했습니다."
-        return 0
+    if [[ ! "$INSTALL_CONFIRM" =~ ^[Yy]$ ]];then
+        print_message INFO "설치를 취소했습니다."
+        return 3
     fi
     echo ""
-    echo "[INFO] PyTorch 설치를 시작합니다."
-    echo "[INFO] 설치 URL: ${TORCH_INDEX}"
+    print_message INFO "PyTorch 설치를 시작합니다."
+    print_message INFO "설치 URL : ${TORCH_INDEX}"
     echo ""
     "${SELECTED_VE_PATH}/bin/python" -m pip install "torch==${PYTORCH_VERSION}" "torchvision==${TORCHVISION_VERSION}" --index-url "${TORCH_INDEX}"
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo "[ERROR] PyTorch 설치에 실패했습니다."
+    if [ $? -ne 0 ];then
+        print_message ERROR "PyTorch 설치에 실패했습니다."
         return 1
     fi
     echo ""
-    echo "[SUCCESS] PyTorch 설치가 완료되었습니다."
-    INSTALLED_PYTORCH_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import torch; print(torch.__version__)")
-    INSTALLED_TORCHVISION_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import torchvision; print(torchvision.__version__)")
-    INSTALLED_CUDA_WHEEL=$("${SELECTED_VE_PATH}/bin/python" -c "import torch; print(torch.version.cuda)")
-    echo ""
-    echo "[INFO] 설치 버전을 확인합니다."
-TORCH_INFO=$("${SELECTED_VE_PATH}/bin/python" - <<'PY'
+    print_message INFO "설치 버전을 확인합니다."
+    TORCH_INFO=$("${SELECTED_VE_PATH}/bin/python" - <<'PY'
 import torch
-
 print(f"PyTorch: {torch.__version__}")
 print(f"PyTorch CUDA: {torch.version.cuda}")
 print(f"CUDA Available: {torch.cuda.is_available()}")
 print(f"GPU Count: {torch.cuda.device_count()}")
-
 for i in range(torch.cuda.device_count()):
     print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 PY
 )
-    echo "$TORCH_INFO"
-    if echo "$TORCH_INFO" | grep -q "CUDA Available: True"; then
-        echo "[SUCCESS] CUDA 및 GPU 인식이 확인되었습니다."
-    else
-        echo "[WARNING] PyTorch는 설치되었지만 CUDA GPU를 인식하지 못했습니다."
+    if [ $? -ne 0 ];then
+        print_message ERROR "PyTorch 설치 확인에 실패했습니다."
+        return 1
     fi
-    SW_META="torch=${PYTORCH_VERSION};torchvision=${TORCHVISION_VERSION};cuda=${CUDA_WHEEL}"
+    echo "$TORCH_INFO"
+    INSTALLED_PYTORCH_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import torch; print(torch.__version__)" 2>/dev/null)
+    INSTALLED_TORCHVISION_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import torchvision; print(torchvision.__version__)" 2>/dev/null)
+    if [ -z "$INSTALLED_PYTORCH_VERSION" ]||[ -z "$INSTALLED_TORCHVISION_VERSION" ];then
+        print_message ERROR "PyTorch 또는 torchvision 설치를 확인할 수 없습니다."
+        return 1
+    fi
+    if echo "$TORCH_INFO"|grep -q "CUDA Available: True";then
+        print_message SUCCESS "CUDA 및 GPU 인식이 확인되었습니다."
+    else
+        print_message WARNING "PyTorch는 설치되었지만 CUDA GPU를 인식하지 못했습니다."
+    fi
+    SW_META="torch=${INSTALLED_PYTORCH_VERSION};torchvision=${INSTALLED_TORCHVISION_VERSION};cuda=${CUDA_WHEEL}"
     add_installed_software "pytorch" "conda" "${SELECTED_VE}" "${SELECTED_PYTHON_VERSION}" "${SW_META}"
-    if [ $? -ne 0 ]; then
-        echo "[ERROR] 설치 목록 등록에 실패했습니다."
+    if [ $? -ne 0 ];then
+        print_message ERROR "설치 목록 등록에 실패했습니다."
         return 1
     fi
     echo ""
-    echo "[SUCCESS] PyTorch 설치 및 등록이 완료되었습니다."
     return 0
 }
-
+# PyTorch 삭제
 uninstall_software() {
     echo ""
     echo "========================================"
     echo "        PyTorch Uninstallation"
     echo "========================================"
     echo ""
-    echo "[INFO] 선택된 가상환경: ${SELECTED_VE}"
-    echo "[INFO] Python 버전: ${SELECTED_PYTHON_VERSION}"
-    echo "[INFO] 경로: ${SELECTED_VE_PATH}"
-    echo ""
-    if ! "${SELECTED_VE_PATH}/bin/python" -c "import torch" 2>/dev/null; then
-        echo "[INFO] 해당 가상환경에 PyTorch가 설치되어 있지 않습니다."
-        return 0
+    if [ -z "$SELECTED_VE_PATH" ]||[ ! -x "${SELECTED_VE_PATH}/bin/python" ];then
+        print_message ERROR "선택된 가상환경을 확인할 수 없습니다."
+        return 1
     fi
-    TORCH_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import torch; print(torch.__version__)" 2>/dev/null)
-    TORCHVISION_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import torchvision; print(torchvision.__version__)" 2>/dev/null)
-    echo "[INFO] 설치된 PyTorch: ${TORCH_VERSION}"
-    echo "[INFO] 설치된 torchvision: ${TORCHVISION_VERSION}"
+    get_installed_pytorch
+    if [ $? -ne 0 ];then
+        print_message INFO "선택된 가상환경에 PyTorch가 설치되어 있지 않습니다."
+        return 2
+    fi
+    echo "Installed : PyTorch"
+    echo "Version   : ${INSTALLED_PYTORCH_VERSION}"
+    echo "torchvision : ${INSTALLED_TORCHVISION_VERSION:-확인 불가}"
+    echo "Environment : ${SELECTED_VE}"
     echo ""
     read -p "PyTorch와 torchvision을 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM
-    if [[ ! "$UNINSTALL_CONFIRM" =~ ^[Yy]$ ]]; then
-        echo "[INFO] 삭제를 취소했습니다."
-        return 0
+    if [[ ! "$UNINSTALL_CONFIRM" =~ ^[Yy]$ ]];then
+        print_message INFO "삭제를 취소했습니다."
+        return 3
     fi
     echo ""
-    echo "[INFO] PyTorch를 삭제합니다."
+    print_message INFO "PyTorch와 torchvision을 삭제합니다."
     "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y torch torchvision
-    if [ $? -ne 0 ]; then
-        echo "[ERROR] PyTorch 삭제에 실패했습니다."
+    if [ $? -ne 0 ];then
+        print_message ERROR "PyTorch 삭제에 실패했습니다."
         return 1
     fi
     echo ""
-    echo "[SUCCESS] PyTorch 삭제가 완료되었습니다."
+    print_message INFO "PyTorch 삭제 여부를 확인합니다."
+    if "${SELECTED_VE_PATH}/bin/python" -c "import torch" 2>/dev/null;then
+        print_message ERROR "PyTorch가 아직 설치되어 있습니다."
+        return 1
+    fi
+    if "${SELECTED_VE_PATH}/bin/python" -c "import torchvision" 2>/dev/null;then
+        print_message ERROR "torchvision이 아직 설치되어 있습니다."
+        return 1
+    fi
+    remove_installed_software "pytorch" "${SELECTED_VE}"
+    if [ $? -ne 0 ];then
+        print_message ERROR "설치 목록 삭제에 실패했습니다."
+        return 1
+    fi
+    echo ""
     return 0
 }
