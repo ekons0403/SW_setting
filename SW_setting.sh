@@ -136,14 +136,15 @@ uninstall_library() {
         pause_screen
         return 1
     fi
+    SELECTED_VE=""
     if [[ "$LIBRARY" =~ ^[0-9]+$ ]];then
-        get_library_list
-        if [ "$LIBRARY" -lt 1 ]||[ "$LIBRARY" -gt "${#LIBRARIES[@]}" ];then
-            print_message ERROR "올바른 라이브러리 번호를 입력해주세요."
+        if ! get_installed_software_by_index "$LIBRARY";then
+            print_message ERROR "올바른 설치 SW 번호를 입력해주세요."
             pause_screen
             return 1
         fi
-        LIBRARY="${LIBRARIES[$((LIBRARY-1))]}"
+        LIBRARY="$SELECTED_SW_NAME"
+        SELECTED_VE="$SELECTED_SW_ENV"
     fi
     LIBRARY="${LIBRARY//-/_}"
     LIBRARY=$(to_lower "$LIBRARY")
@@ -158,9 +159,19 @@ uninstall_library() {
         pause_screen
         return 1
     fi
-    if ! select_required_venv;then
-        pause_screen
-        return 1
+    if [ -n "$SELECTED_VE" ];then
+        if ! conda env list | awk '{print $1}' | grep -qx "$SELECTED_VE";then
+            print_message ERROR "선택된 Conda 환경을 찾을 수 없습니다."
+            pause_screen
+            return 1
+        fi
+        SELECTED_VE_PATH=$(conda env list|awk -v name="$SELECTED_VE" '$1==name{print $NF}')
+        SELECTED_PYTHON_VERSION=$("${SELECTED_VE_PATH}/bin/python" --version 2>&1|awk '{print $2}')
+    else
+        if ! select_required_venv;then
+            pause_screen
+            return 1
+        fi
     fi
     clear_screen
     uninstall_software
