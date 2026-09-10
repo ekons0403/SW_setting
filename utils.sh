@@ -47,7 +47,7 @@ select_required_venv() {
     [[ "$REQUIRE_VENV" != "true" ]]&&return 0
     select_virtual_environment
     if [ $? -ne 0 ];then
-        print_messaage ERROR "가상환경을 선택하지 못했습니다."
+        print_message ERROR "가상환경을 선택하지 못했습니다."
         return 1
     fi
 }

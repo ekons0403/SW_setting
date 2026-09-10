@@ -97,6 +97,7 @@ install_library() {
         pause_screen
         return 1
     fi
+    clear_screen
     if ! select_required_venv;then
         pause_screen
         return 1
@@ -168,6 +169,7 @@ uninstall_library() {
         SELECTED_VE_PATH=$(conda env list|awk -v name="$SELECTED_VE" '$1==name{print $NF}')
         SELECTED_PYTHON_VERSION=$("${SELECTED_VE_PATH}/bin/python" --version 2>&1|awk '{print $2}')
     else
+    clear_screen
         if ! select_required_venv;then
             pause_screen
             return 1
