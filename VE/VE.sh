@@ -71,6 +71,11 @@ create_conda() {
         print_message INFO "환경 이름: ${VE_NAME}"
         return 1
     fi
+    clear_screen
+    echo ""
+    echo "========================================"
+    echo "     Create Conda Environment"
+    echo "========================================"
     echo ""
     print_message INFO "Conda 환경을 생성합니다."
     print_message INFO "환경 이름: ${VE_NAME}"
@@ -141,6 +146,11 @@ delete_virtual_environment() {
     INDEX=$((DELETE_SELECT-1))
     DELETE_ENV_NAME="${DELETE_NAMES[$INDEX]}"
     DELETE_ENV_PATH="${DELETE_PATHS[$INDEX]}"
+    clear_screen
+    echo ""
+    echo "========================================"
+    echo "     Delete Conda Environment"
+    echo "========================================"
     echo ""
     print_message WARNING "선택한 Conda 환경을 삭제합니다."
     print_message WARNING "환경 이름: ${DELETE_ENV_NAME}"
@@ -152,6 +162,11 @@ delete_virtual_environment() {
         print_message INFO "Conda 환경 삭제를 취소했습니다."
         return 3
     fi
+    clear_screen
+    echo ""
+    echo "========================================"
+    echo "     Delete Conda Environment"
+    echo "========================================"
     echo ""
     print_message INFO "Conda 환경을 삭제합니다."
     conda env remove -n "$DELETE_ENV_NAME" -y
@@ -184,6 +199,7 @@ select_virtual_environment() {
         echo ""
         read -p "새로운 Conda 환경을 생성하시겠습니까? (y/n) : " CREATE_VE
         if [[ "$CREATE_VE" =~ ^[Yy]$ ]];then
+            clear_screen
             create_conda
             if [ $? -ne 0 ];then
                 return 1
@@ -203,6 +219,7 @@ select_virtual_environment() {
     fi
     NEW_ENV_OPTION=$((${#VE_NAMES[@]}+1))
     if [ "$VE_SELECT" -eq "$NEW_ENV_OPTION" ];then
+        clear_screen
         create_conda
         if [ $? -ne 0 ];then
             return 1
@@ -218,6 +235,11 @@ select_virtual_environment() {
     VE_TYPE="${VE_TYPES[$INDEX]}"
     SELECTED_VE_PATH="${VE_PATHS[$INDEX]}"
     SELECTED_PYTHON_VERSION="${VE_PYTHON_VERSIONS[$INDEX]}"
+    clear_screen
+    echo ""
+    echo "========================================"
+    echo "     Virtual Environment Selected"
+    echo "========================================"
     echo ""
     print_message SUCCESS "가상환경이 선택되었습니다."
     print_message INFO "이름: ${SELECTED_VE}"
@@ -241,11 +263,20 @@ manage_virtual_environment() {
         echo ""
         read -p "Select : " VE_MENU
         case "$VE_MENU" in
-            1)select_virtual_environment;;
-            2)create_conda;;
-            3)delete_virtual_environment;;
+            1)
+                clear_screen
+                select_virtual_environment
+                ;;
+            2)
+                clear_screen
+                create_conda
+                ;;
+            3)
+                clear_screen
+                delete_virtual_environment
+                ;;
             4)
-                echo ""
+                clear_screen
                 print_message INFO "가상환경 관리 메뉴를 종료합니다."
                 return 0
                 ;;
