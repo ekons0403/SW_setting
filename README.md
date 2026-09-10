@@ -497,20 +497,3 @@ Main Script는 공통적인 설치/삭제 흐름과 메뉴를 담당하고, 실�
 * [ ] 설치 실패 원인 분석 개선
 * [ ] 설치 결과 Report 기능
 * [ ] Software Version 관리 기능 강화
-
-## License
-
-This project is currently maintained for internal development and server environment setup purposes.
-
-License information will be added in a future release.
-
-## Repository
-
-[SW_setting GitHub Repository](https://github.com/ekons0403/SW_setting?utm_source=chatgpt.com)
-
-```
-
-이 정도면 지금 단계의 README로 꽤 적절해. 특히 현재 코드가 **`lib/*.sh`를 동적으로 읽는 구조**라서, README에도 그 구조를 중심으로 설명했어. 실제 `SW_setting.sh`도 `lib`의 `.sh` 파일을 자동으로 Library 목록으로 만들고 번호 선택을 지원하고 있어.
-
-한 가지는 **README에 버전 번호를 박아 넣지 않은 것**도 의도한 거야. 지금 프로젝트가 계속 버전 추천 로직을 수정하는 단계라 README에는 "현재 지원 Software / 구조 / 사용법" 위주로 두는 게 유지보수하기 좋아.
-```
