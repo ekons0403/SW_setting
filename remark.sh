@@ -37,7 +37,7 @@ create_remark_file() {
 
     mkdir -p "$REMARK_DIR"
 
-    REMARK_FILE="${REMARK_DIR}/REMARK_$(date +%Y%m%d_%H%M%S).txt"
+    REMARK_FILE="${REMARK_DIR}/REMARK.txt"
 
     if [ ! -s "$LOG_FILE" ]; then
         print_message ERROR "설치된 SW 기록이 없습니다."
@@ -76,7 +76,7 @@ create_remark_file() {
 
                 nvidia-container-toolkit)
                     COMMANDS=(
-                        ""path" : "nvidia-container-runtime""
+                        "cat /etc/docker/daemon.json"
                     )
                     ;;
 
