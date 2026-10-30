@@ -5,6 +5,7 @@ VE_SCRIPT="${SCRIPT_DIR}/VE/VE.sh"
 LIB_DIR="${SCRIPT_DIR}/lib"
 LOG_DIR="${SCRIPT_DIR}/log"
 LOG_FILE="${LOG_DIR}/installed_sw.log"
+REMARK_SCRIPT="${SCRIPT_DIR}/remark.sh"
 LOGGER_SCRIPT="${SCRIPT_DIR}/logger.sh"
 mkdir -p "$LOG_DIR"
 touch "$LOG_FILE"
@@ -25,6 +26,12 @@ if [ ! -f "$LOGGER_SCRIPT" ];then
     echo "[ERROR] 로그 관리 스크립트를 찾을 수 없습니다."
     exit 1
 fi
+if [ ! -f "$REMARK_SCRIPT" ];then
+    echo "[ERROR] REMARK 관리 스크립트를 찾을 수 없습니다."
+    echo "[ERROR] 경로: ${REMARK_SCRIPT}"
+    exit 1
+fi
+source "$REMARK_SCRIPT"
 source "$LOGGER_SCRIPT"
 validate_installed_software
 # 화면 대기
@@ -232,7 +239,8 @@ main_menu() {
         echo "2. SW Library 삭제"
         echo "3. 가상환경 관리"
         echo "4. 현재 설치된 SW"
-        echo "5. 종료"
+        echo "5. REMARK.txt 생성"
+        echo "6. 종료"
         echo ""
         read -p "Select : " MAIN_SELECT
         case "$MAIN_SELECT" in
@@ -253,6 +261,10 @@ main_menu() {
                 pause_screen
                 ;;
             5)
+                create_remark_file
+                pause_screen
+                ;;
+            6)
                 exit 0
                 ;;
             *)
