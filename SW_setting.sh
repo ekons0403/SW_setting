@@ -79,9 +79,14 @@ install_library() {
             return 1
         fi
     fi
-    LIBRARY="${LIBRARY//-/_}"
     LIBRARY=$(to_lower "$LIBRARY")
+    # 원래 이름으로 모듈 검색
     MODULE=$(get_library_module "$LIBRARY")
+    # 모듈을 찾지 못한 경우 하이픈을 언더스코어로 변환하여 검색
+    if [ -z "$MODULE" ]; then
+        MODULE_LIBRARY="${LIBRARY//-/_}"
+        MODULE=$(get_library_module "$MODULE_LIBRARY")
+    fi
     if [ -z "$MODULE" ];then
         print_message ERROR "설치 가능한 라이브러리가 아닙니다."
         pause_screen
@@ -147,9 +152,14 @@ uninstall_library() {
         LIBRARY="$SELECTED_SW_NAME"
         SELECTED_VE="$SELECTED_SW_ENV"
     fi
-    LIBRARY="${LIBRARY//-/_}"
     LIBRARY=$(to_lower "$LIBRARY")
+    # 원래 이름으로 모듈 검색
     MODULE=$(get_library_module "$LIBRARY")
+    # 모듈을 찾지 못한 경우 하이픈을 언더스코어로 변환하여 검색
+    if [ -z "$MODULE" ]; then
+        MODULE_LIBRARY="${LIBRARY//-/_}"
+        MODULE=$(get_library_module "$MODULE_LIBRARY")
+    fi
     if [ -z "$MODULE" ];then
         print_message ERROR "해당 라이브러리 모듈을 찾을 수 없습니다."
         pause_screen
