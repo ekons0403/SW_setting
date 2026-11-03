@@ -38,6 +38,21 @@ validate_installed_software
 pause_screen() {
     read -p "계속하려면 Enter를 누르세요."
 }
+# SW 설치 여부 확인
+is_library_installed() {
+    local LIBRARY_NAME="$1"
+    [ -z "$LIBRARY_NAME" ] && return 1
+    [ ! -f "$LOG_FILE" ] && return 1
+    awk -F'|' -v name="$LIBRARY_NAME" '
+        $1 == name {
+            found = 1
+            exit
+        }
+        END {
+            exit !found
+        }
+    ' "$LOG_FILE"
+}
 # SW Library 목록
 get_library_list() {
     LIBRARIES=()
@@ -66,8 +81,14 @@ install_library() {
     echo "          Installable Libraries"
     echo "========================================"
     local i=1
-    for library in "${LIBRARIES[@]}";do
-        printf "  %2d. %s\n" "$i" "$library"
+    for library in "${LIBRARIES[@]}"; do
+        if is_library_installed "$library"; then
+            printf "  \033[0;34m%2d. %s [설치됨]\033[0m\n" \
+                "$i" "$library"
+        else
+            printf "  \033[0;37m%2d. %s\033[0m\n" \
+                "$i" "$library"
+        fi
         ((i++))
     done
     echo "========================================"

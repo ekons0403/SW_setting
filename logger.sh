@@ -66,68 +66,83 @@ remove_installed_environment() {
 }
 # 설치된 SW 목록 출력
 show_installed_software() {
+    local BLUE='\033[0;34m'
+    local NC='\033[0m'
     echo ""
     echo "========================================"
     echo "        Installed Software"
     echo "========================================"
     echo ""
-    if [ ! -f "$LOG_FILE" ]||[ ! -s "$LOG_FILE" ];then
+    if [ ! -f "$LOG_FILE" ] || [ ! -s "$LOG_FILE" ]; then
         print_message INFO "설치된 SW가 없습니다."
         return 0
     fi
-    SW_NAMES=()
-    SW_TYPES=()
-    SW_ENVS=()
-    SW_PYTHONS=()
-    SW_METAS=()
-    SYSTEM_COUNT=0
-    CONDA_COUNT=0
-    while IFS='|' read -r SW_NAME SW_TYPE ENV_NAME PYTHON_VERSION SW_META;do
-        [ -z "$SW_NAME" ]&&continue
+    local SW_NAMES=()
+    local SW_TYPES=()
+    local SW_ENVS=()
+    local SW_PYTHONS=()
+    local SW_METAS=()
+    local SYSTEM_COUNT=0
+    local CONDA_COUNT=0
+    local SW_NAME SW_TYPE ENV_NAME PYTHON_VERSION SW_META
+
+    while IFS='|' read -r SW_NAME SW_TYPE ENV_NAME PYTHON_VERSION SW_META; do
+        [ -z "$SW_NAME" ] && continue
         SW_NAMES+=("$SW_NAME")
         SW_TYPES+=("$SW_TYPE")
         SW_ENVS+=("$ENV_NAME")
         SW_PYTHONS+=("$PYTHON_VERSION")
         SW_METAS+=("$SW_META")
         case "$SW_TYPE" in
-            system)SYSTEM_COUNT=$((SYSTEM_COUNT+1));;
-            conda)CONDA_COUNT=$((CONDA_COUNT+1));;
+            system)
+                SYSTEM_COUNT=$((SYSTEM_COUNT + 1))
+                ;;
+            conda)
+                CONDA_COUNT=$((CONDA_COUNT + 1))
+                ;;
         esac
     done < "$LOG_FILE"
-    if [ ${#SW_NAMES[@]} -eq 0 ];then
+
+    if [ ${#SW_NAMES[@]} -eq 0 ]; then
         print_message INFO "설치된 SW가 없습니다."
         return 0
     fi
-    SW_INDEX=0
-    if [ "$SYSTEM_COUNT" -gt 0 ];then
+    local SW_INDEX=0
+    local i
+    # System Software
+    if [ "$SYSTEM_COUNT" -gt 0 ]; then
         echo "[System Software]"
         echo "----------------------------------------"
-        for i in "${!SW_NAMES[@]}";do
-            [ "${SW_TYPES[$i]}" != "system" ]&&continue
-            SW_INDEX=$((SW_INDEX+1))
-            echo "[${SW_INDEX}] ${SW_NAMES[$i]}"
+        for i in "${!SW_NAMES[@]}"; do
+            [ "${SW_TYPES[$i]}" != "system" ] && continue
+            SW_INDEX=$((SW_INDEX + 1))
+            printf "${BLUE}[%d] %s${NC}\n" \
+                "$SW_INDEX" "${SW_NAMES[$i]}"
             echo "    Type        : ${SW_TYPES[$i]}"
-            if [ -n "${SW_METAS[$i]}" ];then
+            if [ -n "${SW_METAS[$i]}" ]; then
                 print_sw_meta "${SW_METAS[$i]}"
             fi
             echo ""
         done
     fi
-    if [ "$SYSTEM_COUNT" -gt 0 ]&&[ "$CONDA_COUNT" -gt 0 ];then
+    # System / Conda 구분선
+    if [ "$SYSTEM_COUNT" -gt 0 ] && [ "$CONDA_COUNT" -gt 0 ]; then
         echo "========================================"
         echo ""
     fi
-    if [ "$CONDA_COUNT" -gt 0 ];then
+    # Conda Software
+    if [ "$CONDA_COUNT" -gt 0 ]; then
         echo "[Conda Software]"
         echo "----------------------------------------"
-        for i in "${!SW_NAMES[@]}";do
-            [ "${SW_TYPES[$i]}" != "conda" ]&&continue
-            SW_INDEX=$((SW_INDEX+1))
-            echo "[${SW_INDEX}] ${SW_NAMES[$i]}"
+        for i in "${!SW_NAMES[@]}"; do
+            [ "${SW_TYPES[$i]}" != "conda" ] && continue
+            SW_INDEX=$((SW_INDEX + 1))
+            printf "${BLUE}[%d] %s${NC}\n" \
+                "$SW_INDEX" "${SW_NAMES[$i]}"
             echo "    Type        : ${SW_TYPES[$i]}"
             echo "    Environment : ${SW_ENVS[$i]}"
             echo "    Python      : ${SW_PYTHONS[$i]}"
-            if [ -n "${SW_METAS[$i]}" ];then
+            if [ -n "${SW_METAS[$i]}" ]; then
                 print_sw_meta "${SW_METAS[$i]}"
             fi
             echo ""
