@@ -28,6 +28,11 @@ recommend_pytorch() {
             TORCHVISION_VERSION="0.27.1"
             CUDA_WHEEL="cu132"
             ;;
+        13.0*)
+            PYTORCH_VERSION="2.12.1"
+            TORCHVISION_VERSION="0.27.1"
+            CUDA_WHEEL="cu130"
+            ;;
         12.8*)
             PYTORCH_VERSION="2.8.0"
             TORCHVISION_VERSION="0.23.0"
