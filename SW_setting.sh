@@ -40,17 +40,20 @@ pause_screen() {
 }
 # SW 설치 여부 확인
 is_library_installed() {
-    local LIBRARY_NAME="$1"
+    local LIBRARY_NAME="${1//-/_}"
+
     [ -z "$LIBRARY_NAME" ] && return 1
     [ ! -f "$LOG_FILE" ] && return 1
+
     awk -F'|' -v name="$LIBRARY_NAME" '
-        $1 == name {
-            found = 1
-            exit
+        {
+            gsub(/-/, "_", $1)
+            if ($1 == name) {
+                found=1
+                exit
+            }
         }
-        END {
-            exit !found
-        }
+        END { exit !found }
     ' "$LOG_FILE"
 }
 # SW Library 목록
