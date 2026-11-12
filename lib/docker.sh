@@ -148,8 +148,8 @@ uninstall_docker() {
         echo "========================================"
         echo ""
 
-        print_message WARN "NVIDIA Container Toolkit이 설치되어 있습니다."
-        print_message WARN "Docker 삭제 시 NVIDIA Container Toolkit도 함께 삭제해야 합니다."
+        print_message WARNING "NVIDIA Container Toolkit이 설치되어 있습니다."
+        print_message WARNING "Docker 삭제 시 NVIDIA Container Toolkit도 함께 삭제해야 합니다."
 
         echo ""
         read -p "Docker와 NVIDIA Container Toolkit을 함께 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM

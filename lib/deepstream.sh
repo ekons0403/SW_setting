@@ -250,8 +250,26 @@ install_software() {
         return 2
     fi
 
+    # 서버 정보 확인
     get_system_info
-    get_tensorrt_version
+
+    # TensorRT 설치 여부 확인
+    if ! get_tensorrt_version; then
+        echo ""
+        echo "========================================"
+        echo "        System Information"
+        echo "========================================"
+        echo ""
+        echo "Ubuntu        : ${OS_VERSION}"
+        echo "NVIDIA Driver : ${NVIDIA_DRIVER}"
+        echo "CUDA          : ${CUDA_VERSION}"
+        echo "TensorRT      : 확인 불가"
+        echo ""
+
+        print_message ERROR "TensorRT가 설치되어 있지 않습니다."
+        print_message INFO "DeepStream 설치 전에 TensorRT를 먼저 설치해주세요."
+        return 1
+    fi
 
     echo ""
     echo "========================================"
@@ -261,14 +279,8 @@ install_software() {
     echo "Ubuntu        : ${OS_VERSION}"
     echo "NVIDIA Driver : ${NVIDIA_DRIVER}"
     echo "CUDA          : ${CUDA_VERSION}"
-
-    if [ -n "$TENSORRT_VERSION" ]; then
-        echo "TensorRT      : ${TENSORRT_VERSION}"
-        echo "TensorRT Env  : ${TENSORRT_ENV}"
-    else
-        echo "TensorRT      : 확인 불가"
-    fi
-
+    echo "TensorRT      : ${TENSORRT_VERSION}"
+    echo "TensorRT Env  : ${TENSORRT_ENV}"
     echo ""
 
     if recommend_deepstream; then
@@ -276,8 +288,7 @@ install_software() {
         echo "Expected TensorRT       : ${DEEPSTREAM_EXPECTED_TRT}"
         echo "Recommendation          : ${DEEPSTREAM_RECOMMENDATION_NOTE}"
 
-        if [ -n "$TENSORRT_VERSION" ] &&
-           [[ "$TENSORRT_VERSION" != "$DEEPSTREAM_EXPECTED_TRT"* ]]; then
+        if [[ "$TENSORRT_VERSION" != "$DEEPSTREAM_EXPECTED_TRT"* ]]; then
             echo ""
             print_message WARNING "현재 TensorRT 버전과 추천 DeepStream의 기준 버전이 다릅니다."
             echo "현재 TensorRT : ${TENSORRT_VERSION}"
@@ -325,7 +336,7 @@ install_software() {
     echo ""
     echo "Ubuntu             : ${OS_VERSION}"
     echo "DeepStream Version : ${DEEPSTREAM_VERSION}"
-    echo "TensorRT           : ${TENSORRT_VERSION:-확인 불가}"
+    echo "TensorRT           : ${TENSORRT_VERSION}"
     echo "CUDA               : ${CUDA_VERSION}"
     echo "Package            : deb"
     echo ""
@@ -373,7 +384,7 @@ install_software() {
     fi
 
     # 설치 목록 등록
-    SW_META="version=${DEEPSTREAM_VERSION};tensorrt=${TENSORRT_VERSION:-확인 불가};cuda=${CUDA_VERSION};ubuntu=${OS_VERSION};package=deb"
+    SW_META="version=${DEEPSTREAM_VERSION};tensorrt=${TENSORRT_VERSION};cuda=${CUDA_VERSION};ubuntu=${OS_VERSION};package=deb"
 
     if ! add_installed_software "deepstream" "system" "" "" "${SW_META}"; then
         print_message ERROR "설치 목록 등록에 실패했습니다."
