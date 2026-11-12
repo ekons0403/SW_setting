@@ -1,3 +1,4 @@
+
 #!/bin/bash
 # 가상환경 여부
 REQUIRE_VENV=false
@@ -6,9 +7,11 @@ REQUIRE_VENV=false
 get_system_info() {
     NVIDIA_DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1)
     CUDA_VERSION=$(nvcc --version 2>/dev/null | grep -oP 'release \K[0-9]+\.[0-9]+' | head -n1)
+    OS_VERSION=$(. /etc/os-release 2>/dev/null && echo "$VERSION_ID")
 
     [ -z "$NVIDIA_DRIVER" ] && NVIDIA_DRIVER="확인 불가"
     [ -z "$CUDA_VERSION" ] && CUDA_VERSION="확인 불가"
+    [ -z "$OS_VERSION" ] && OS_VERSION="확인 불가"
 }
 
 # TensorRT 정보
@@ -74,27 +77,50 @@ get_installed_deepstream() {
     return 1
 }
 
-# 추천 버전
+# DeepStream 추천 버전
 recommend_deepstream() {
     DEEPSTREAM_VERSION=""
+    DEEPSTREAM_EXPECTED_TRT=""
 
-    case "$TENSORRT_VERSION" in
-        10.16*)
-            DEEPSTREAM_VERSION="9.1.0"
+    case "$OS_VERSION" in
+        22.04)
+            case "$CUDA_VERSION" in
+                12.8|13.0)
+                    DEEPSTREAM_VERSION="7.1.0"
+                    DEEPSTREAM_EXPECTED_TRT="10.3"
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
             ;;
-        10.14*)
-            DEEPSTREAM_VERSION="9.0.0"
+
+        24.04)
+            case "$CUDA_VERSION" in
+                12.8)
+                    DEEPSTREAM_VERSION="8.0.0"
+                    DEEPSTREAM_EXPECTED_TRT="10.9"
+                    ;;
+                13.0)
+                    DEEPSTREAM_VERSION="9.0.0"
+                    DEEPSTREAM_EXPECTED_TRT="10.14"
+                    ;;
+                13.2)
+                    DEEPSTREAM_VERSION="9.1.0"
+                    DEEPSTREAM_EXPECTED_TRT="10.16"
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
             ;;
-        10.9*)
-            DEEPSTREAM_VERSION="8.0.0"
-            ;;
-        10.3*)
-            DEEPSTREAM_VERSION="7.1.0"
-            ;;
+
         *)
             return 1
             ;;
     esac
+
+    return 0
 }
 
 # DeepStream 정보
@@ -115,7 +141,7 @@ get_deepstream_info() {
         8.0*)
             DEEPSTREAM_PACKAGE="deepstream-8.0"
             PACKAGE_NAME="deepstream-8.0_8.0.0-1_amd64.deb"
-            DOWNLOAD_URL="https://github.com/NVIDIA/DeepStream/releases/download/v8.0.0/${PACKAGE_NAME}"
+            DOWNLOAD_URL="https://api.ngc.nvidia.com/v2/resources/org/nvidia/deepstream/8.0/files?redirect=true&path=${PACKAGE_NAME}"
             DEEPSTREAM_PATH="/opt/nvidia/deepstream/deepstream-8.0"
             ;;
         7.1*)
@@ -232,6 +258,7 @@ install_software() {
     echo "        System Information"
     echo "========================================"
     echo ""
+    echo "Ubuntu        : ${OS_VERSION}"
     echo "NVIDIA Driver : ${NVIDIA_DRIVER}"
     echo "CUDA          : ${CUDA_VERSION}"
 
@@ -246,6 +273,17 @@ install_software() {
 
     if recommend_deepstream; then
         echo "Recommended DeepStream : ${DEEPSTREAM_VERSION}"
+        echo "Expected TensorRT       : ${DEEPSTREAM_EXPECTED_TRT}"
+        echo "Recommendation          : ${DEEPSTREAM_RECOMMENDATION_NOTE}"
+
+        if [ -n "$TENSORRT_VERSION" ] &&
+           [[ "$TENSORRT_VERSION" != "$DEEPSTREAM_EXPECTED_TRT"* ]]; then
+            echo ""
+            print_message WARNING "현재 TensorRT 버전과 추천 DeepStream의 기준 버전이 다릅니다."
+            echo "현재 TensorRT : ${TENSORRT_VERSION}"
+            echo "기준 TensorRT : ${DEEPSTREAM_EXPECTED_TRT}"
+        fi
+
         echo ""
         echo "1. 추천 버전 설치"
         echo "2. 직접 입력"
@@ -265,7 +303,7 @@ install_software() {
                 ;;
         esac
     else
-        print_message WARNING "현재 설치된 TensorRT에 맞는 추천 버전이 없습니다."
+        print_message WARNING "현재 Ubuntu/CUDA 조합에 대한 추천 버전이 없습니다."
         echo ""
         read -p "DeepStream 버전 : " DEEPSTREAM_VERSION
     fi
@@ -285,6 +323,7 @@ install_software() {
     echo "        DeepStream Installation Info"
     echo "========================================"
     echo ""
+    echo "Ubuntu             : ${OS_VERSION}"
     echo "DeepStream Version : ${DEEPSTREAM_VERSION}"
     echo "TensorRT           : ${TENSORRT_VERSION:-확인 불가}"
     echo "CUDA               : ${CUDA_VERSION}"
@@ -334,7 +373,7 @@ install_software() {
     fi
 
     # 설치 목록 등록
-    SW_META="version=${DEEPSTREAM_VERSION};tensorrt=${TENSORRT_VERSION:-확인 불가};cuda=${CUDA_VERSION};package=deb"
+    SW_META="version=${DEEPSTREAM_VERSION};tensorrt=${TENSORRT_VERSION:-확인 불가};cuda=${CUDA_VERSION};ubuntu=${OS_VERSION};package=deb"
 
     if ! add_installed_software "deepstream" "system" "" "" "${SW_META}"; then
         print_message ERROR "설치 목록 등록에 실패했습니다."
