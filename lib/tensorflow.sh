@@ -1,6 +1,7 @@
-버전#!/bin/bash
+#!/bin/bash
 # 가상환경 여부
 REQUIRE_VENV=true
+
 # 서버 정보
 get_system_info() {
     NVIDIA_DRIVER=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null|head -n1)
@@ -8,6 +9,7 @@ get_system_info() {
     [ -z "$NVIDIA_DRIVER" ]&&NVIDIA_DRIVER="확인 불가"
     [ -z "$CUDA_VERSION" ]&&CUDA_VERSION="확인 불가"
 }
+
 # TensorFlow 설치 여부
 get_installed_tensorflow() {
     INSTALLED_TENSORFLOW_VERSION=$("${SELECTED_VE_PATH}/bin/python" -c "import tensorflow as tf; print(tf.__version__)" 2>/dev/null)
@@ -16,6 +18,7 @@ get_installed_tensorflow() {
     fi
     return 1
 }
+
 # 추천 버전
 recommend_tensorflow() {
     TENSORFLOW_VERSION=""
@@ -61,6 +64,7 @@ recommend_tensorflow() {
 
     return 0
 }
+
 # TensorFlow 설치
 install_software() {
     get_installed_tensorflow
@@ -210,6 +214,7 @@ install_software() {
     echo ""
     return 0
 }
+
 # TensorFlow GPU 확인
 verify_installation() {
     print_message INFO "TensorFlow GPU 동작 여부를 확인합니다."
@@ -294,6 +299,7 @@ PY
 
     return 0
 }
+
 # TensorFlow 삭제
 uninstall_software() {
     echo ""
@@ -319,7 +325,34 @@ uninstall_software() {
     echo "Environment : ${SELECTED_VE}"
     echo ""
 
-    read -p "TensorFlow를 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM
+    # Keras Backend 확인
+    INSTALLED_KERAS_VERSION=$("${SELECTED_VE_PATH}/bin/python" -m pip show keras 2>/dev/null|awk '/^Version:/{print $2}')
+    KERAS_BACKEND=""
+
+    if [ -n "$INSTALLED_KERAS_VERSION" ];then
+        KERAS_BACKEND=$("${SELECTED_VE_PATH}/bin/python" -c "import keras; print(keras.config.backend())" 2>/dev/null)
+
+        if [ "$KERAS_BACKEND" = "tensorflow" ];then
+            echo "Installed   : Keras"
+            echo "Version     : ${INSTALLED_KERAS_VERSION}"
+            echo "Backend     : TensorFlow"
+            echo ""
+            print_message WARNING "Keras가 TensorFlow Backend를 사용하고 있습니다."
+            echo ""
+            read -p "TensorFlow와 Keras를 함께 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM
+        else
+            if [ -z "$KERAS_BACKEND" ];then
+                print_message WARNING "Keras Backend를 확인할 수 없습니다."
+                print_message INFO "Keras는 유지하고 TensorFlow만 삭제합니다."
+            else
+                print_message INFO "Keras Backend가 ${KERAS_BACKEND}이므로 Keras는 유지합니다."
+            fi
+            echo ""
+            read -p "TensorFlow를 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM
+        fi
+    else
+        read -p "TensorFlow를 삭제하시겠습니까? (y/n) : " UNINSTALL_CONFIRM
+    fi
 
     if [[ ! "$UNINSTALL_CONFIRM" =~ ^[Yy]$ ]];then
         print_message INFO "삭제를 취소했습니다."
@@ -327,27 +360,47 @@ uninstall_software() {
     fi
 
     echo ""
-    print_message INFO "TensorFlow를 삭제합니다."
+    print_message INFO "TensorFlow 관련 패키지를 삭제합니다."
 
-    "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y tensorflow
+    if [ "$KERAS_BACKEND" = "tensorflow" ]&&[ -n "$INSTALLED_KERAS_VERSION" ];then
+        "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y keras tensorflow
+    else
+        "${SELECTED_VE_PATH}/bin/python" -m pip uninstall -y tensorflow
+    fi
 
     if [ $? -ne 0 ];then
-        print_message ERROR "TensorFlow 삭제에 실패했습니다."
+        print_message ERROR "패키지 삭제에 실패했습니다."
         return 1
     fi
 
     echo ""
-    print_message INFO "TensorFlow 삭제 여부를 확인합니다."
+    print_message INFO "패키지 삭제 여부를 확인합니다."
 
     if "${SELECTED_VE_PATH}/bin/python" -c "import tensorflow" 2>/dev/null;then
         print_message ERROR "TensorFlow가 아직 설치되어 있습니다."
         return 1
     fi
 
+    if [ "$KERAS_BACKEND" = "tensorflow" ]&&[ -n "$INSTALLED_KERAS_VERSION" ];then
+        if "${SELECTED_VE_PATH}/bin/python" -c "import keras" 2>/dev/null;then
+            print_message ERROR "Keras가 아직 설치되어 있습니다."
+            return 1
+        fi
+
+        remove_installed_software "keras" "${SELECTED_VE}"
+
+        if [ $? -ne 0 ];then
+            print_message ERROR "Keras 설치 목록 삭제에 실패했습니다."
+            return 1
+        fi
+
+        print_message SUCCESS "Keras 삭제가 완료되었습니다."
+    fi
+
     remove_installed_software "tensorflow" "${SELECTED_VE}"
 
     if [ $? -ne 0 ];then
-        print_message ERROR "설치 목록 삭제에 실패했습니다."
+        print_message ERROR "TensorFlow 설치 목록 삭제에 실패했습니다."
         return 1
     fi
 
