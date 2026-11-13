@@ -276,8 +276,6 @@ manage_virtual_environment() {
                 delete_virtual_environment
                 ;;
             4)
-                clear_screen
-                print_message INFO "가상환경 관리 메뉴를 종료합니다."
                 return 0
                 ;;
             *)
