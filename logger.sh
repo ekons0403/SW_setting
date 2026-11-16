@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # SW 이름 정규화
 normalize_sw_name() {
     local SW_NAME="$1"
@@ -21,25 +20,29 @@ get_sorted_installed_entries() {
     awk -F'|' '
         NF >= 2 {
             name = $1
-
-            if (name == "scikit-learn") {
-                name = "scikit_learn"
-            }
+            gsub(/-/, "_", name)
 
             if ($2 == "system") {
                 group = 1
+                env_rank = 0
+                env = ""
             } else if ($2 == "conda") {
                 group = 2
+                if ($3 == "base") env_rank = 0
+                else env_rank = 1
+                env = $3
             } else {
                 next
             }
 
-            printf "%d|%s|%s|%s|%s|%s|%s\n", \
-                group, name, $3, name, $2, $4, $5
+            printf "%d|%d|%s|%s|%s|%s|%s|%s|%s\n", \
+                group, env_rank, env, name, name, $2, $3, $4, $5
         }
     ' "$LOG_FILE" |
-        sort -t'|' -k1,1n -k2,2 -k3,3 |
-        cut -d'|' -f4-
+        sort -t'|' -k1,1n -k2,2n -k3,3 -k4,4 |
+        awk -F'|' '{
+            print $5 "|" $6 "|" $7 "|" $8 "|" $9
+        }'
 }
 
 # 설치된 SW 목록 등록
@@ -201,11 +204,11 @@ print_installed_sw_meta() {
         VALUE="${ITEM#*=}"
 
         case "$KEY" in
-            version)
+            version|jupyterlab|scikit-learn)
                 printf "    %-12s : %s\n" "Version" "$VALUE"
                 ;;
             package)
-                # package 정보는 출력하지 않음
+                # 패키지 이름은 출력하지 않음
                 ;;
             *)
                 KEY="${KEY//_/ }"
@@ -218,93 +221,72 @@ print_installed_sw_meta() {
 
 # 설치된 SW 목록 출력
 show_installed_software() {
-    local BLUE='\033[0;34m'
-    local NC='\033[0m'
-
-    local SYSTEM_COUNT=0
-    local CONDA_COUNT=0
-    local SW_INDEX=0
-
     local SW_NAME=""
     local SW_TYPE=""
     local ENV_NAME=""
     local PYTHON_VERSION=""
     local SW_META=""
+    local PREVIOUS_ENV=""
+    local CURRENT_GROUP=""
+    local INDEX=1
+
+    local ENTRIES=()
 
     echo ""
     echo "========================================"
-    echo "        Installed Software"
+    echo "          Installed Software"
     echo "========================================"
-    echo ""
 
-    if [ ! -f "$LOG_FILE" ] || [ ! -s "$LOG_FILE" ]; then
-        print_message INFO "설치된 SW가 없습니다."
+    mapfile -t ENTRIES < <(get_sorted_installed_entries)
+
+    if [ "${#ENTRIES[@]}" -eq 0 ]; then
+        print_message WARNING "설치된 SW가 없습니다."
         return 0
     fi
 
-    # 설치 유형별 개수 확인
-    while IFS='|' read -r SW_NAME SW_TYPE ENV_NAME PYTHON_VERSION SW_META; do
-        case "$SW_TYPE" in
-            system)
-                SYSTEM_COUNT=$((SYSTEM_COUNT + 1))
-                ;;
-            conda)
-                CONDA_COUNT=$((CONDA_COUNT + 1))
-                ;;
-        esac
-    done < <(get_sorted_installed_entries)
+    for ENTRY in "${ENTRIES[@]}"; do
+        IFS='|' read -r \
+            SW_NAME SW_TYPE ENV_NAME PYTHON_VERSION SW_META <<< "$ENTRY"
 
-    # System Software
-    if [ "$SYSTEM_COUNT" -gt 0 ]; then
-        echo "[System Software]"
-        echo "----------------------------------------"
+        if [ "$SW_TYPE" = "system" ]; then
+            if [ "$CURRENT_GROUP" != "system" ]; then
+                echo ""
+                echo "[System Software]"
+                echo "----------------------------------------"
+                CURRENT_GROUP="system"
+            fi
 
-        while IFS='|' read -r SW_NAME SW_TYPE ENV_NAME PYTHON_VERSION SW_META; do
-            [ "$SW_TYPE" != "system" ] && continue
+        elif [ "$SW_TYPE" = "conda" ]; then
+            if [ "$CURRENT_GROUP" != "conda" ]; then
+                echo ""
+                echo ""
+                echo "[Conda Software]"
+                echo "----------------------------------------"
+                CURRENT_GROUP="conda"
+                PREVIOUS_ENV="$ENV_NAME"
 
-            SW_INDEX=$((SW_INDEX + 1))
+            elif [ "$PREVIOUS_ENV" != "$ENV_NAME" ]; then
+                echo ""
+                echo "----------------------------------------"
+                PREVIOUS_ENV="$ENV_NAME"
+            fi
+        fi
 
-            printf "${BLUE}[%d] %s${NC}\n" \
-                "$SW_INDEX" "$SW_NAME"
+        printf "\n[%d] %s\n" "$INDEX" "$SW_NAME"
+        printf "    %-12s : %s\n" "Type" "$SW_TYPE"
 
-            printf "    %-12s : %s\n" "Type" "$SW_TYPE"
-
-            print_installed_sw_meta "$SW_META"
-
-            echo ""
-        done < <(get_sorted_installed_entries)
-    fi
-
-    # System / Conda 구분선
-    if [ "$SYSTEM_COUNT" -gt 0 ] && [ "$CONDA_COUNT" -gt 0 ]; then
-        echo "========================================"
-        echo ""
-    fi
-
-    # Conda Software
-    if [ "$CONDA_COUNT" -gt 0 ]; then
-        echo "[Conda Software]"
-        echo "----------------------------------------"
-
-        while IFS='|' read -r SW_NAME SW_TYPE ENV_NAME PYTHON_VERSION SW_META; do
-            [ "$SW_TYPE" != "conda" ] && continue
-
-            SW_INDEX=$((SW_INDEX + 1))
-
-            printf "${BLUE}[%d] %s${NC}\n" \
-                "$SW_INDEX" "$SW_NAME"
-
-            printf "    %-12s : %s\n" "Type" "$SW_TYPE"
+        if [ "$SW_TYPE" = "conda" ]; then
             printf "    %-12s : %s\n" "Environment" "$ENV_NAME"
             printf "    %-12s : %s\n" "Python" "$PYTHON_VERSION"
+        fi
 
-            print_installed_sw_meta "$SW_META"
+        print_installed_sw_meta "$SW_META"
 
-            echo ""
-        done < <(get_sorted_installed_entries)
-    fi
+        ((INDEX++))
+    done
 
-    return 0
+    echo ""
+    echo "========================================"
 }
 
 # 설치된 SW 출력 번호 조회
