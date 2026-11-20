@@ -4,7 +4,7 @@ is_sync_target() {
     local SW_NAME="${1//-/_}"
 
     case "$SW_NAME" in
-        deepstream|docker|jupyter_lab|keras|nvidia_container_toolkit|openfoam|pycharm|pytorch|scikit_learn|tensorflow|tensorrt|vscode)
+        deepstream|docker|jupyter_lab|keras|nvidia_container_toolkit|nvidia_driver|openfoam|pycharm|pytorch|scikit_learn|tensorflow|tensorrt|vscode)
             return 0
             ;;
         *)
@@ -122,6 +122,46 @@ sync_system_software() {
             break
         fi
     done
+
+    # NVIDIA Driver
+    local DRIVER_PACKAGE=""
+    local DRIVER_VERSION=""
+
+    # 실제 동작 중인 NVIDIA Driver 버전 확인
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        DRIVER_VERSION=$(nvidia-smi \
+            --query-gpu=driver_version \
+            --format=csv,noheader 2>/dev/null |
+            head -n1 | tr -d '[:space:]')
+    fi
+
+    # 설치된 NVIDIA Driver 패키지 확인
+    DRIVER_PACKAGE=$(
+        dpkg-query -W \
+            -f='${db:Status-Abbrev}|${binary:Package}\n' \
+            'nvidia-driver-*' 2>/dev/null |
+        awk -F'|' '
+            $1 ~ /^ii/ &&
+            $2 ~ /^nvidia-driver-[0-9]+(-open)?(:.*)?$/ {
+                print $2
+                exit
+            }
+        '
+    )
+
+    # nvidia-smi에서 버전을 확인하지 못한 경우 패키지 버전 사용
+    if [ -z "$DRIVER_VERSION" ] && [ -n "$DRIVER_PACKAGE" ]; then
+        DRIVER_VERSION=$(dpkg-query -W \
+            -f='${Version}' "$DRIVER_PACKAGE" 2>/dev/null)
+    fi
+
+    # 설치 방식과 관계없이 드라이버 등록
+    if [ -n "$DRIVER_VERSION" ]; then
+        sync_register_software "nvidia_driver" "system" "" "" \
+            "version=${DRIVER_VERSION};package=${DRIVER_PACKAGE:-runfile}"
+    else
+        print_message WARNING "NVIDIA Driver를 감지하지 못했습니다."
+    fi
 
     # NVIDIA Container Toolkit
     if command -v nvidia-ctk >/dev/null 2>&1; then

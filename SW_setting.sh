@@ -1,5 +1,10 @@
 
 #!/bin/bash
+
+# ============================================================
+# SW_setting ver.2
+# ============================================================
+
 # 기본 경로
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VE_SCRIPT="${SCRIPT_DIR}/VE/VE.sh"
@@ -10,10 +15,14 @@ REMARK_SCRIPT="${SCRIPT_DIR}/remark.sh"
 LOGGER_SCRIPT="${SCRIPT_DIR}/logger.sh"
 UTILS_SCRIPT="${SCRIPT_DIR}/utils.sh"
 SYNC_SCRIPT="${SCRIPT_DIR}/sync.sh"
+
 mkdir -p "$LOG_DIR"
 touch "$LOG_FILE"
 
+# ------------------------------------------------------------
 # 다른 스크립트 로드
+# ------------------------------------------------------------
+
 # 가상환경 관리
 if [ ! -f "$VE_SCRIPT" ]; then
     echo "[ERROR] 가상환경 관리 스크립트를 찾을 수 없습니다."
@@ -21,6 +30,7 @@ if [ ! -f "$VE_SCRIPT" ]; then
     exit 1
 fi
 source "$VE_SCRIPT"
+
 # Utility
 if [ ! -f "$UTILS_SCRIPT" ]; then
     echo "[ERROR] Utility 스크립트를 찾을 수 없습니다."
@@ -28,6 +38,7 @@ if [ ! -f "$UTILS_SCRIPT" ]; then
     exit 1
 fi
 source "$UTILS_SCRIPT"
+
 # Logger
 if [ ! -f "$LOGGER_SCRIPT" ]; then
     echo "[ERROR] 로그 관리 스크립트를 찾을 수 없습니다."
@@ -35,6 +46,7 @@ if [ ! -f "$LOGGER_SCRIPT" ]; then
     exit 1
 fi
 source "$LOGGER_SCRIPT"
+
 # REMARK
 if [ ! -f "$REMARK_SCRIPT" ]; then
     echo "[ERROR] REMARK 관리 스크립트를 찾을 수 없습니다."
@@ -42,6 +54,7 @@ if [ ! -f "$REMARK_SCRIPT" ]; then
     exit 1
 fi
 source "$REMARK_SCRIPT"
+
 # Software Synchronization
 if [ ! -f "$SYNC_SCRIPT" ]; then
     echo "[ERROR] 동기화 스크립트를 찾을 수 없습니다."
@@ -50,17 +63,28 @@ if [ ! -f "$SYNC_SCRIPT" ]; then
 fi
 source "$SYNC_SCRIPT"
 
+# ------------------------------------------------------------
 # 설치 목록 검증
+# ------------------------------------------------------------
 validate_installed_software
+
+# ------------------------------------------------------------
 # 화면 대기
+# ------------------------------------------------------------
 pause_screen() {
     read -p "계속하려면 Enter를 누르세요."
 }
+
+# ------------------------------------------------------------
 # SW Library 설치 여부 확인
+# ------------------------------------------------------------
 is_library_installed() {
+
     local LIBRARY_NAME="${1//-/_}"
+
     [ -z "$LIBRARY_NAME" ] && return 1
     [ ! -f "$LOG_FILE" ] && return 1
+
     awk -F'|' -v name="$LIBRARY_NAME" '
         {
             gsub(/-/, "_", $1)
@@ -74,19 +98,29 @@ is_library_installed() {
         }
     ' "$LOG_FILE"
 }
+
+# ------------------------------------------------------------
 # SW Library 목록
+# ------------------------------------------------------------
 get_library_list() {
+
     LIBRARIES=()
 
     for file in "$LIB_DIR"/*.sh; do
+
         [ -f "$file" ] || continue
 
         LIBRARY=$(basename "$file" .sh)
         LIBRARIES+=("$LIBRARY")
+
     done
 }
+
+# ------------------------------------------------------------
 # SW Library 번호 변환
+# ------------------------------------------------------------
 get_library_by_number() {
+
     local NUMBER="$1"
 
     get_library_list
@@ -101,34 +135,54 @@ get_library_by_number() {
 
     return 1
 }
+
+# ------------------------------------------------------------
 # SW Library 설치
+# ------------------------------------------------------------
 install_library() {
+
     clear_screen
     get_library_list
+
     echo ""
     echo "========================================"
     echo "          Installable Libraries"
     echo "========================================"
+
     local i=1
+
     for library in "${LIBRARIES[@]}"; do
+
         if is_library_installed "$library"; then
+
             printf "  \033[0;34m%2d. %s [설치됨]\033[0m\n" \
                 "$i" "$library"
+
         else
+
             printf "  \033[0;37m%2d. %s\033[0m\n" \
                 "$i" "$library"
+
         fi
+
         ((i++))
+
     done
+
     echo "========================================"
     echo ""
+
     read -p "Install Library : " LIBRARY
+
     if [ -z "$LIBRARY" ]; then
         print_message ERROR "설치할 라이브러리를 입력해주세요."
         pause_screen
         return 1
     fi
+
+    # 번호 입력 처리
     if [[ "$LIBRARY" =~ ^[0-9]+$ ]]; then
+
         LIBRARY=$(get_library_by_number "$LIBRARY")
 
         if [ -z "$LIBRARY" ]; then
@@ -136,61 +190,102 @@ install_library() {
             pause_screen
             return 1
         fi
+
     fi
+
     LIBRARY=$(to_lower "$LIBRARY")
+
+    # 모듈 검색
     MODULE=$(get_library_module "$LIBRARY")
+
     if [ -z "$MODULE" ]; then
+
         MODULE_LIBRARY="${LIBRARY//-/_}"
         MODULE=$(get_library_module "$MODULE_LIBRARY")
+
     fi
+
     if [ -z "$MODULE" ]; then
         print_message ERROR "설치 가능한 라이브러리가 아닙니다."
         pause_screen
         return 1
     fi
+
+    # 인터넷 연결 확인
     if ! check_internet; then
         print_message ERROR "인터넷 연결 상태를 확인한 후 다시 실행해주세요."
         pause_screen
         return 1
     fi
+
+    # 설치 함수 로드
     if ! load_module_function "$MODULE" install_software; then
         print_message ERROR "install_software 함수를 찾을 수 없습니다."
         pause_screen
         return 1
     fi
-    clear_screen
-    if ! select_required_venv; then
-        pause_screen
-        return 1
+
+    # --------------------------------------------------------
+    # NVIDIA Driver : System 설치
+    # --------------------------------------------------------
+    if [[ "$LIBRARY" == "nvidia_driver" ]]; then
+
+        SELECTED_VE=""
+        SELECTED_VE_PATH=""
+        SELECTED_PYTHON_VERSION=""
+
+    else
+
+        # 일반 라이브러리 : Conda 환경 선택
+        clear_screen
+
+        if ! select_required_venv; then
+            pause_screen
+            return 1
+        fi
+
     fi
+
     clear_screen
+
     install_software
     INSTALL_RESULT=$?
+
     case "$INSTALL_RESULT" in
+
         0)
             print_message SUCCESS "${LIBRARY} 설치가 완료되었습니다."
             pause_screen
             return 0
             ;;
+
         2)
             pause_screen
             return 0
             ;;
+
         3)
             pause_screen
             return 0
             ;;
+
         *)
             print_message ERROR "${LIBRARY} 설치에 실패했습니다."
             pause_screen
             return 1
             ;;
+
     esac
 }
+
+# ------------------------------------------------------------
 # SW Library 삭제
+# ------------------------------------------------------------
 uninstall_library() {
+
     clear_screen
     show_installed_software
+
     echo ""
     read -p "Uninstall Library : " LIBRARY
 
@@ -199,58 +294,91 @@ uninstall_library() {
         pause_screen
         return 1
     fi
+
     SELECTED_VE=""
+
+    # 번호 입력 처리
     if [[ "$LIBRARY" =~ ^[0-9]+$ ]]; then
+
         if ! get_installed_software_by_index "$LIBRARY"; then
             print_message ERROR "올바른 설치 SW 번호를 입력해주세요."
             pause_screen
             return 1
         fi
+
         LIBRARY="$SELECTED_SW_NAME"
         SELECTED_VE="$SELECTED_SW_ENV"
+
     fi
+
     LIBRARY=$(to_lower "$LIBRARY")
+
+    # 모듈 검색
     MODULE=$(get_library_module "$LIBRARY")
+
     if [ -z "$MODULE" ]; then
+
         MODULE_LIBRARY="${LIBRARY//-/_}"
         MODULE=$(get_library_module "$MODULE_LIBRARY")
+
     fi
+
     if [ -z "$MODULE" ]; then
         print_message ERROR "해당 라이브러리 모듈을 찾을 수 없습니다."
         pause_screen
         return 1
     fi
+
+    # 삭제 함수 로드
     if ! load_module_function "$MODULE" uninstall_software; then
         print_message ERROR "${LIBRARY}에는 삭제 기능이 구현되어 있지 않습니다."
         pause_screen
         return 1
     fi
-    if [ -n "$SELECTED_VE" ]; then
+
+    # NVIDIA Driver : System 삭제
+    if [[ "$LIBRARY" == "nvidia_driver" ]]; then
+
+        SELECTED_VE=""
+        SELECTED_VE_PATH=""
+        SELECTED_PYTHON_VERSION=""
+
+    elif [ -n "$SELECTED_VE" ]; then
+
         if ! conda env list | awk '{print $1}' | grep -qx "$SELECTED_VE"; then
             print_message ERROR "선택된 Conda 환경을 찾을 수 없습니다."
             pause_screen
             return 1
         fi
+
         SELECTED_VE_PATH=$(
             conda env list |
             awk -v name="$SELECTED_VE" '$1==name {print $NF}'
         )
+
         SELECTED_PYTHON_VERSION=$(
             "${SELECTED_VE_PATH}/bin/python" --version 2>&1 |
             awk '{print $2}'
         )
+
     else
+
         clear_screen
 
         if ! select_required_venv; then
             pause_screen
             return 1
         fi
+
     fi
+
     clear_screen
+
     uninstall_software
     UNINSTALL_RESULT=$?
+
     case "$UNINSTALL_RESULT" in
+
         0)
             ;;
         2)
@@ -266,11 +394,17 @@ uninstall_library() {
             pause_screen
             return 1
             ;;
+
     esac
+
     if [ -n "$SELECTED_VE" ]; then
+
         remove_installed_software "$LIBRARY" "$SELECTED_VE"
+
     else
+
         remove_installed_software "$LIBRARY"
+
     fi
 
     if [ $? -ne 0 ]; then
@@ -284,9 +418,14 @@ uninstall_library() {
 
     return 0
 }
+
+# ------------------------------------------------------------
 # 메인 메뉴
+# ------------------------------------------------------------
 main_menu() {
+
     while true; do
+
         clear_screen
 
         echo ""
@@ -302,40 +441,55 @@ main_menu() {
         echo "5. REMARK.txt 생성"
         echo "6. 종료"
         echo ""
+
         read -p "Select : " MAIN_SELECT
+
         case "$MAIN_SELECT" in
+
             0)
                 sync_installed_software
                 ;;
+
             1)
                 install_library
                 ;;
+
             2)
                 uninstall_library
                 ;;
+
             3)
                 clear_screen
                 manage_virtual_environment
                 pause_screen
                 ;;
+
             4)
                 clear_screen
                 show_installed_software
                 pause_screen
                 ;;
+
             5)
                 create_remark_file
                 pause_screen
                 ;;
+
             6)
                 exit 0
                 ;;
+
             *)
                 print_message ERROR "올바른 번호를 선택해주세요."
                 pause_screen
                 ;;
+
         esac
+
     done
 }
+
+# ------------------------------------------------------------
 # 프로그램 시작
+# ------------------------------------------------------------
 main_menu
