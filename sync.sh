@@ -141,7 +141,7 @@ sync_system_software() {
             -f='${db:Status-Abbrev}|${binary:Package}\n' \
             'nvidia-driver-*' 2>/dev/null |
         awk -F'|' '
-            $1 ~ /^ii/ &&
+            $1 ~ /i$/ &&
             $2 ~ /^nvidia-driver-[0-9]+(-open)?(:.*)?$/ {
                 print $2
                 exit
@@ -155,12 +155,12 @@ sync_system_software() {
             -f='${Version}' "$DRIVER_PACKAGE" 2>/dev/null)
     fi
 
-    # 설치 방식과 관계없이 드라이버 등록
+    # NVIDIA Driver 설치 상태에 따라 로그 동기화
     if [ -n "$DRIVER_VERSION" ]; then
         sync_register_software "nvidia_driver" "system" "" "" \
             "version=${DRIVER_VERSION};package=${DRIVER_PACKAGE:-runfile}"
     else
-        print_message WARNING "NVIDIA Driver를 감지하지 못했습니다."
+        remove_installed_software "nvidia_driver" ""
     fi
 
     # NVIDIA Container Toolkit
