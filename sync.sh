@@ -13,7 +13,7 @@ is_sync_target() {
     esac
 }
 
-# 동기화 로그 등록 및 중복 확인
+# 동기화 로그 등록 및 기존 항목 갱신
 sync_register_software() {
     local SW_NAME="${1//-/_}"
     local SW_TYPE="$2"
@@ -64,15 +64,24 @@ sync_register_software() {
             ;;
     esac
 
+    # 기존 등록 항목 제거
     if [ "$EXISTING" = "yes" ]; then
-        printf "  \033[0;34m[기존 등록] %s\033[0m\n" "$SW_NAME"
-        return 0
+        if ! remove_installed_software "$SW_NAME" "$ENV_NAME"; then
+            print_message ERROR "${SW_NAME} 기존 등록 항목 제거 실패"
+            return 1
+        fi
     fi
 
+    # 최신 설치 정보로 다시 등록
     if add_installed_software "$SW_NAME" "$SW_TYPE" \
         "$ENV_NAME" "$PYTHON_VERSION" "$SW_META"; then
 
-        printf "  \033[0;32m[신규 등록] %s\033[0m\n" "$SW_NAME"
+        if [ "$EXISTING" = "yes" ]; then
+            printf "  \033[0;34m[갱신 등록] %s\033[0m\n" "$SW_NAME"
+        else
+            printf "  \033[0;32m[신규 등록] %s\033[0m\n" "$SW_NAME"
+        fi
+
         return 0
     else
         print_message ERROR "${SW_NAME} 등록 실패"
