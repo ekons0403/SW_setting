@@ -73,6 +73,12 @@ create_remark_file() {
                         "docker info"
                     )
                     ;;
+                
+                nvidia_driver)
+                    COMMANDS=(
+                        "nvidia-smi"
+                    )
+                    ;;
 
                 nvidia-container-toolkit)
                     COMMANDS=(
