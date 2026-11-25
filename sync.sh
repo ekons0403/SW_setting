@@ -1,6 +1,4 @@
-
 #!/bin/bash
-
 # 동기화 대상 SW 확인
 is_sync_target() {
     local SW_NAME="${1//-/_}"
@@ -116,6 +114,7 @@ sync_system_software() {
     local SW_VERSION=""
     local PACKAGE=""
     local CODE_PATH=""
+    local DRIVER_INFO=""
     local DRIVER_PACKAGE=""
     local DRIVER_VERSION=""
 
@@ -153,39 +152,43 @@ sync_system_software() {
             break
         fi
     done
-
     # NVIDIA Driver
-    # 실제 동작 중인 NVIDIA Driver 버전 확인
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        DRIVER_VERSION=$(nvidia-smi \
-            --query-gpu=driver_version \
-            --format=csv,noheader 2>/dev/null |
-            head -n1 | tr -d '[:space:]')
-    fi
-
-    # 설치된 NVIDIA Driver 패키지 확인
-    DRIVER_PACKAGE=$(
+    DRIVER_INFO=$(
         dpkg-query -W \
-            -f='${db:Status-Abbrev}|${binary:Package}\n' \
+            -f='${db:Status-Abbrev}|${binary:Package}|${Version}\n' \
             'nvidia-driver-*' 2>/dev/null |
         awk -F'|' '
-            $1 ~ /i$/ &&
+            $1 ~ /^ii/ &&
             $2 ~ /^nvidia-driver-[0-9]+(-open)?(:.*)?$/ {
-                print $2
+                print $2 "|" $3
                 exit
             }
         '
     )
 
-    # nvidia-smi에서 버전을 확인하지 못한 경우 패키지 버전 사용
-    if [ -z "$DRIVER_VERSION" ] && [ -n "$DRIVER_PACKAGE" ]; then
-        DRIVER_VERSION=$(dpkg-query -W \
-            -f='${Version}' "$DRIVER_PACKAGE" 2>/dev/null)
+    if [ -n "$DRIVER_INFO" ]; then
+        DRIVER_PACKAGE="${DRIVER_INFO%%|*}"
+        DRIVER_VERSION="${DRIVER_INFO#*|}"
+    elif command -v nvidia-smi >/dev/null 2>&1; then
+        DRIVER_PACKAGE="runfile"
+        DRIVER_VERSION=$(nvidia-smi \
+            --query-gpu=driver_version \
+            --format=csv,noheader 2>/dev/null | head -n1 | tr -d '[:space:]')
+    fi
+
+    # Ubuntu/Debian 패키지 빌드 정보 제거
+    if [ -n "$DRIVER_VERSION" ]; then
+        DRIVER_VERSION=$(printf '%s\n' "$DRIVER_VERSION" |
+            sed -E 's/^[0-9]+://' |
+            grep -oE '^[0-9]+(\.[0-9]+)+')
     fi
 
     if [ -n "$DRIVER_VERSION" ]; then
         sync_register_software "nvidia_driver" "system" "" "" \
-            "version=${DRIVER_VERSION};package=${DRIVER_PACKAGE:-runfile}"
+            "version=${DRIVER_VERSION};package=${DRIVER_PACKAGE}"
+    elif [ -n "$DRIVER_INFO" ] || command -v nvidia-smi >/dev/null 2>&1; then
+        print_message WARNING "NVIDIA Driver 버전을 확인할 수 없습니다."
+        SYNC_SCAN_FAILED=1
     fi
 
     # NVIDIA Container Toolkit
@@ -317,10 +320,11 @@ sync_conda_software() {
     echo "          Conda Software Sync"
     echo "========================================"
 
-    # Conda가 설치되어 있지 않으면 Conda SW가 없는 것으로 처리
+    # Conda 검색에 실패하면 기존 Conda 로그 보호를 위해 전체 정리 중단
     if ! command -v conda >/dev/null 2>&1; then
         print_message WARNING "Conda 명령어를 찾을 수 없습니다."
-        return 0
+        SYNC_SCAN_FAILED=1
+        return 1
     fi
 
     BASE_PATH=$(conda info --base 2>/dev/null)
